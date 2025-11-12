@@ -176,11 +176,10 @@ class JawaneseTikTokBot:
             "payment_generated": """
         💳 <b>LINK BAYAR WIS DIGAWE COK!</b>
 
-        <blockquote><code>🔗 Klik link iki kanggo bayar:</code>
-        {url}</blockquote>
+        <blockquote><code>🔗 Klik tombol "Bayar Sekarang" neng ngisor iki:</code></blockquote>
 
         <b>⚠️ PENTING BANGET:</b>
-        <i>Pembayaran bakal otomatis terdeteksi sawise kowe bener² bayar. Ojo cuma klik link tok!</i>
+        <i>Pembayaran bakal otomatis terdeteksi sawise kowe bener² bayar. Ojo cuma klik tombol tok!</i>
 
         <tg-spoiler>Biasane proses 1-24 jam</tg-spoiler>
         """,
@@ -665,9 +664,16 @@ class JawaneseTikTokBot:
                 quantity=package["quantity"]
             )
 
+            # Create inline keyboard with payment button
+            keyboard = [
+                [InlineKeyboardButton("💳 Bayar Sekarang", url=payment_url)]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
             # Don't record payment yet - only when user actually pays
             await query.edit_message_text(
-                self.messages["payment_generated"].format(url=payment_url),
+                self.messages["payment_generated"].format(url="tombol di bawah"),
+                reply_markup=reply_markup,
                 parse_mode='HTML'
             )
 
