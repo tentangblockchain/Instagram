@@ -173,7 +173,7 @@ class Database:
             """, (user_id, today))
             conn.commit()
     
-    def record_payment(self, user_id: int, days: int, amount: int, status: str = "pending", trakteer_id: str = None) -> int:
+    def record_payment(self, user_id: int, days: int, amount: int, status: str = "pending", trakteer_id: Optional[str] = None) -> int:
         """Record a payment with better duplicate prevention"""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
