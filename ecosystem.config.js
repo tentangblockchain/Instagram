@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: 'telegram-bot',
+    name: 'Insta-bot',
     script: 'main.py',
     interpreter: 'python3',
     cwd: process.cwd(),
