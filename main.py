@@ -174,15 +174,15 @@ class JawaneseTikTokBot:
         """,
 
             "payment_generated": """
-        💳 <b>LINK BAYAR WIS DIGAWE COK!</b>
+💳 <b>LINK BAYAR WIS DIGAWE COK!</b>
 
-        <blockquote>🔗 Klik tombol "Bayar Sekarang" neng ngisor iki</blockquote>
+<blockquote>🔗 Klik tombol "Bayar Sekarang" neng ngisor iki</blockquote>
 
-        <b>⚠️ PENTING BANGET:</b>
-        <i>Pembayaran bakal otomatis terdeteksi sawise kowe bener² bayar. Ojo cuma klik tombol tok!</i>
+<b>⚠️ PENTING BANGET:</b>
+<i>Pembayaran bakal otomatis terdeteksi sawise kowe bener² bayar. Ojo cuma klik tombol tok!</i>
 
-        <tg-spoiler>Biasane proses 1-24 jam</tg-spoiler>
-        """,
+<tg-spoiler>Biasane proses 1-24 jam</tg-spoiler>
+""",
 
             "payment_pending": """
         ⏳ <b>PEMBAYARAN LAGI PENDING COK</b>
@@ -672,7 +672,7 @@ class JawaneseTikTokBot:
 
             # Don't record payment yet - only when user actually pays
             await query.edit_message_text(
-                self.messages["payment_generated"],
+                text=self.messages["payment_generated"],
                 reply_markup=reply_markup,
                 parse_mode='HTML'
             )
