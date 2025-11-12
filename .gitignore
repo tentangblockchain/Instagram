@@ -30,6 +30,7 @@ database.backup.db
 logs/
 *.log
 pm2-*.log
+replit.md
 
 # Backup Files (Old Versions)
 *_old.py
@@ -106,4 +107,3 @@ dmypy.json
 # - start-pm2.sh (PM2 startup script)
 # - requirements.txt (Python dependencies)
 # - README.md (documentation)
-# - replit.md (Replit documentation)
