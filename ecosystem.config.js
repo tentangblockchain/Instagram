@@ -3,7 +3,7 @@ module.exports = {
     name: 'telegram-bot',
     script: 'main.py',
     interpreter: 'python3',
-    cwd: '/home/runner/workspace',
+    cwd: process.cwd(),
     instances: 1,
     autorestart: true,
     watch: false,
