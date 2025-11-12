@@ -58,7 +58,7 @@ class Database:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_vip ON users(is_vip, vip_expires_at)")
             
             conn.commit()
-            logger.info("Database initialized successfully")
+            logger.info("✅ Database berhasil diinisialisasi dengan baik")
     
     def register_user(self, user_id: int, username: str) -> None:
         """Register or update user"""

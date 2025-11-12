@@ -237,6 +237,7 @@ class TrakteerAPI:
             
         except Exception as e:
             logger.error(f"Error syncing payments: {e}")
+            logger.info("Mohon maaf kak, sedang ada kendala dengan sistem pembayaran")
             return []
     
     def get_expected_quantity(self, days: int) -> int:
