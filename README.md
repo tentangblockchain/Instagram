@@ -51,10 +51,11 @@ Bot Telegram untuk download konten TikTok dan Instagram dengan sistem VIP subscr
 # Clone repository
 git clone https://github.com/tentangblockchain/Instagram.git
 cd Instagram
-
+```
+```bash
 # Install dependencies
 pip install -r requirements.txt
-
+```
 # Setup environment variables
 cp .env.example .env
 # Edit .env dengan credentials kamu
@@ -83,10 +84,12 @@ python main.py
 ```bash
 # Install PM2 (jika belum)
 npm install -g pm2
-
+```
+```bash
 # Start bot dengan PM2
 bash start-pm2.sh
-
+```
+```bash
 # Atau manual
 pm2 start ecosystem.config.js
 ```
