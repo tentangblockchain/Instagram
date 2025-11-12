@@ -29,4 +29,4 @@ class Config:
         self.DEBUG = os.getenv("DEBUG", "False").lower() == "true"
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         
-        logger.info(f"Config loaded: Admin IDs: {self.ADMIN_IDS}, Channels: {self.REQUIRED_CHANNELS}")
+        logger.info(f"✅ Konfigurasi berhasil dimuat: Admin IDs: {self.ADMIN_IDS}, Channel: {self.REQUIRED_CHANNELS}")

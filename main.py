@@ -1076,14 +1076,14 @@ class JawaneseTikTokBot:
         """Run the bot with comprehensive error handling"""
         try:
             # Test configuration
-            logger.info("Testing bot configuration...")
+            logger.info("🔍 Mengecek konfigurasi bot...")
             test_app = Application.builder().token(self.config.BOT_TOKEN).build()
 
             # Test database connection
-            logger.info("Testing database connection...")
+            logger.info("🔍 Mengecek koneksi database...")
             self.db.get_user_stats()
 
-            logger.info("✅ All tests passed, starting bot...")
+            logger.info("✅ Semua pengecekan berhasil! Bot siap dijalankan...")
 
             application = Application.builder().token(self.config.BOT_TOKEN).build()
 
@@ -1110,26 +1110,26 @@ class JawaneseTikTokBot:
                 job_queue.run_repeating(self.cleanup_expired_vip, interval=3600)  # Every hour
 
             # Start bot
-            logger.info("🚀 Bot starting...")
+            logger.info("🚀 Bot berhasil dijalankan! Siap melayani 💕")
             application.run_polling(allowed_updates=Update.ALL_TYPES)
 
         except Exception as e:
-            logger.error(f"❌ CRITICAL ERROR: Bot failed to start - {e}")
-            logger.error(f"Error type: {type(e).__name__}")
-            logger.error(f"Error details: {str(e)}")
+            logger.error(f"❌ ERROR KRITIS: Bot gagal dijalankan - {e}")
+            logger.error(f"Tipe error: {type(e).__name__}")
+            logger.error(f"Detail error: {str(e)}")
             raise
 
 if __name__ == "__main__":
     try:
-        logger.info("🤖 Initializing Javanese TikTok Bot...")
+        logger.info("🤖 Memulai Bot Downloader...")
         bot = JawaneseTikTokBot()
         bot.run()
     except ValueError as e:
-        logger.error(f"❌ Configuration Error: {e}")
-        print(f"❌ Configuration Error: {e}")
-        print("💡 Check your environment variables (.env file)")
+        logger.error(f"❌ Ada Kendala Konfigurasi: {e}")
+        print(f"❌ Maaf, ada kendala konfigurasi: {e}")
+        print("💡 Mohon cek file environment variables (.env) ya kak")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"❌ Fatal Error: {e}")
-        print(f"❌ Fatal Error: {e}")
+        logger.error(f"❌ Error Kritis: {e}")
+        print(f"❌ Maaf, terjadi error: {e}")
         sys.exit(1)
