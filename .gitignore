@@ -1,4 +1,8 @@
-# Python
+# ============================================
+# Python Telegram Bot Downloader - .gitignore
+# ============================================
+
+# Python Cache & Compiled Files
 __pycache__/
 *.py[cod]
 *$py.class
@@ -13,37 +17,39 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.pythonlibs/
 
-# Database
+# Database Files (SQLite)
 *.db
 *.sqlite
 *.sqlite3
 database.db
+database.backup.db
 
-# Logs
+# Logs & PM2 Logs
 logs/
 *.log
+pm2-*.log
 
-# Configuration files with sensitive data
+# Backup Files (Old Versions)
+*_old.py
+*_backup.py
+*.bak
 
-ecosystem.config.js
-
-# IDE
+# IDE & Editor Files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.replit
 
-# OS
+# OS Specific Files
 .DS_Store
 Thumbs.db
+.directory
 
-# Project specific
-server/
-
-# Distribution / packaging
-.Python
+# Distribution / Packaging
 build/
 develop-eggs/
 dist/
@@ -59,13 +65,45 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
 
-# Temporary files
+# Temporary Files
 *.tmp
-*.bak
-*.swp
+/tmp/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments (keep .env.example for reference)
+# .env already ignored above
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# ============================================
+# Files to KEEP (not ignored):
+# ============================================
+# - config.py (no secrets, loads from .env)
+# - ecosystem.config.js (PM2 config)
+# - start-pm2.sh (PM2 startup script)
+# - requirements.txt (Python dependencies)
+# - README.md (documentation)
+# - replit.md (Replit documentation)

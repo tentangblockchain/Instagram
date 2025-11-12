@@ -104,3 +104,25 @@ python main.py
 - Admin IDs: 6185398749, 7027694923
 - Required Channel: @silviaroyshita_88
 - Trakteer Username: yovica
+
+## GitHub Repository
+**Official Repository**: https://github.com/tentangblockchain/Instagram
+
+## Deployment Options
+### Option 1: PM2 (VPS/Server)
+- Use `bash start-pm2.sh` untuk start dengan PM2
+- Auto-restart, monitoring, dan logs management
+- File config: `ecosystem.config.js`
+
+### Option 2: Replit Reserved VM
+- Deploy via Replit Deploy button
+- Choose "Reserved VM" deployment type
+- Bot akan running 24/7
+- Config sudah ada di `.replit` file
+
+## Performance Optimizations (Nov 12, 2025)
+- ✅ Fast-fail strategy untuk rate-limit errors (15-20 detik lebih cepat)
+- ✅ Socket timeout optimization (10 detik)
+- ✅ Single format attempt instead of 5 formats
+- ✅ Concurrent fragment downloads
+- ✅ Better error detection untuk Instagram/TikTok
