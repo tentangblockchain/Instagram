@@ -75,84 +75,84 @@ class JawaneseTikTokBot:
 
 
         # Javanese messages (bahasa Jawa kasar) - HTML formatted
-        # Enhanced Javanese Bot Messages with Modern HTML Styling
+        # Friendly Young Woman (25 years old) Bot Messages - Sopan & Ramah
         self.messages = {
             # Welcome & Status Messages
             "welcome": """
-        🎭 <b>SUGENG RAWUH NENG BOT DOWNLOADER!</b> 🎭
+        🌸 <b>Hai! Selamat datang di Bot Downloader</b> 🌸
 
         <code>✨ TikTok &amp; Instagram Downloader Pro ✨</code>
 
-        <blockquote>Kirim link TikTok utawa Instagram, utawa ketik <code>/vip</code> kanggo upgrade akun cok!</blockquote>
+        <blockquote>Kirim link TikTok atau Instagram kamu, atau ketik <code>/vip</code> untuk upgrade akun ya!</blockquote>
 
-        <i>⚡ Gratis tapi terbatas • 💎 VIP unlimited</i>
+        <i>⚡ Gratis tapi ada batasnya • 💎 VIP unlimited download</i>
         """,
 
             "not_member": """
-        🚫 <b>EH GOBLOK! KUDU JOIN CHANNEL SIK!</b>
+        🙏 <b>Halo kak! Boleh join channel dulu ya~</b>
 
-        <blockquote>📢 Wajib join kabeh channel iki:
+        <blockquote>📢 Mohon join semua channel ini dulu:
         {channels}</blockquote>
 
-        <i>Join kabeh channel sik baru iso ngunduh cok!</i>
+        <i>Setelah join, kakak bisa langsung download konten favorit! 💕</i>
         """,
 
             "daily_limit": """
-        ⏰ <b>WIS TEKAN LIMIT DOWNLOAD!</b>
+        ⏰ <b>Yah, limit download hari ini sudah habis nih kak</b>
 
-        <blockquote>📊 Limit dina iki: <code>{current}/{limit}</code></blockquote>
+        <blockquote>📊 Download hari ini: <code>{current}/{limit}</code></blockquote>
 
-        <i>💎 Upgrade VIP kanggo unlimited download utawa enteni sesuk!</i>
+        <i>💎 Upgrade ke VIP untuk unlimited download, atau tunggu besok ya kak! ✨</i>
         """,
 
             "invalid_url": """
-        ❌ <b>LINK MU SALAH COK!</b>
+        ❌ <b>Ups! Link-nya sepertinya belum benar nih kak</b>
 
-        <blockquote>🔗 Kirim link sing bener:
+        <blockquote>🔗 Pastikan kirim link yang benar ya:
         • <code>TikTok</code> (tiktok.com, vt.tiktok.com, vm.tiktok.com)
         • <code>Instagram</code> (instagram.com, instagr.am)</blockquote>
         """,
 
             # Processing Messages
             "processing": """
-        ⏳ <b>SABAR COK... LAGI DIPROSES...</b>
+        ⏳ <b>Sebentar ya kak, lagi diproses...</b>
 
-        <blockquote><code>🔄 Downloading content...</code></blockquote>
+        <blockquote><code>🔄 Sedang mengunduh konten...</code></blockquote>
 
-        <i>Tunggu sebentar ya, lagi ngambil file mu!</i>
+        <i>Ditunggu sebentar aja ya, file kakak sedang disiapkan! 💫</i>
         """,
 
             "download_success": """
-        ✅ <b>SUKSES COK!</b>
+        ✅ <b>Yeay! Berhasil!</b>
 
-        <blockquote><code>📁 File mu wis siap!</code></blockquote>
+        <blockquote><code>📁 File kakak sudah siap!</code></blockquote>
 
-        <i>Enjoy konten mu! 🎉</i>
+        <i>Selamat menikmati kontennya! 🎉</i>
         """,
 
             "carousel_success": """
-        ✅ <b>SUKSES COK!</b>
+        ✅ <b>Sukses! Album berhasil diunduh</b>
 
         <blockquote><code>📸 Carousel/Album berhasil diunduh!</code>
         <b>Total file:</b> {count}</blockquote>
 
-        <i>Semua file carousel wis dikirim! 🎊</i>
+        <i>Semua file sudah dikirim ya kak! 🎊</i>
         """,
 
             "download_error": """
-        ❌ <b>ERROR COK!</b>
+        ❌ <b>Maaf kak, ada kendala nih</b>
 
-        <blockquote><code>⚠️ Ora iso download:</code>
+        <blockquote><code>⚠️ Tidak bisa download:</code>
         {error}</blockquote>
 
-        <i>Coba lagi utawa ganti link lain!</i>
+        <i>Coba lagi ya kak, atau pakai link yang lain! 🙏</i>
         """,
 
             # VIP System Messages
             "vip_info": """
-        💎 <b>PAKET VIP PREMIUM</b> 💎
+        💎 <b>Paket VIP Premium</b> 💎
 
-        <blockquote><code>🌟 Pilih paket sing cocok kanggo kowe:</code></blockquote>
+        <blockquote><code>🌟 Pilih paket yang cocok untuk kakak:</code></blockquote>
 
         • <code>3 hari</code> - <b>Rp 5,000</b>
         • <code>7 hari</code> - <b>Rp 10,000</b> <tg-spoiler>(Recommended)</tg-spoiler>
@@ -162,124 +162,124 @@ class JawaneseTikTokBot:
         • <code>90 hari</code> - <b>Rp 80,000</b> <tg-spoiler>(Super Saver)</tg-spoiler>
 
 
-        <i>⚡ VIP = Download unlimited + priority support!</i>
+        <i>⚡ Benefit VIP: Download unlimited + prioritas support! 💕</i>
         """,
 
             "vip_status": """
-        👑 <b>STATUS VIP MU COK</b>
+        👑 <b>Status VIP Kakak</b>
 
         <blockquote>{status}</blockquote>
 
-        <i>Makasih wis dadi VIP member! 🙏</i>
+        <i>Terima kasih sudah menjadi VIP member! 🙏✨</i>
         """,
 
             "payment_generated": """
-💳 <b>LINK BAYAR WIS DIGAWE COK!</b>
+💳 <b>Link Pembayaran Sudah Dibuat!</b>
 
-<blockquote>🔗 Klik tombol "Bayar Sekarang" neng ngisor iki</blockquote>
+<blockquote>🔗 Silakan klik tombol "Bayar Sekarang" di bawah ini ya kak</blockquote>
 
-<b>⚠️ PENTING BANGET:</b>
-<i>Pembayaran bakal otomatis terdeteksi sawise kowe bener² bayar. Ojo cuma klik tombol tok!</i>
+<b>⚠️ Penting banget nih:</b>
+<i>Pembayaran akan otomatis terdeteksi setelah kakak benar-benar bayar. Jangan cuma klik tombol aja ya! 😊</i>
 
-<tg-spoiler>Biasane proses 1-24 jam</tg-spoiler>
+<tg-spoiler>Biasanya diproses dalam 1-24 jam</tg-spoiler>
 """,
 
             "payment_pending": """
-        ⏳ <b>PEMBAYARAN LAGI PENDING COK</b>
+        ⏳ <b>Pembayaran Sedang Diproses</b>
 
-        <blockquote><code>🔄 Status: Waiting for admin approval</code></blockquote>
+        <blockquote><code>🔄 Status: Menunggu persetujuan admin</code></blockquote>
 
-        <i>Sabar ya, admin lagi ngecek pembayaran mu!</i>
+        <i>Sabar ya kak, admin sedang mengecek pembayaran kakak! 💕</i>
         """,
 
             "payment_approved": """
-        🎉 <b>SELAMAT COK!</b>
+        🎉 <b>Selamat! Pembayaran Disetujui</b>
 
-        <blockquote><code>✅ Pembayaran mu wis diapprove!</code>
-        <b>VIP Status:</b> <u>AKTIF SEKARANG</u></blockquote>
+        <blockquote><code>✅ Pembayaran kakak sudah diapprove!</code>
+        <b>Status VIP:</b> <u>AKTIF SEKARANG</u></blockquote>
 
-        <i>Selamat menikmati fitur VIP unlimited! 🚀</i>
+        <i>Selamat menikmati fitur VIP unlimited ya kak! 🚀✨</i>
         """,
 
             "payment_rejected": """
-        ❌ <b>PEMBAYARAN DITOLAK</b>
+        ❌ <b>Maaf, Pembayaran Ditolak</b>
 
         <blockquote><code>⚠️ Alasan: Pembayaran tidak valid</code></blockquote>
 
-        <i>Pastikan wis bener² mbayar po durung cok!</i>
+        <i>Pastikan sudah benar-benar bayar ya kak! Kalau ada kendala, hubungi admin ya 🙏</i>
         """,
 
             "payment_detected": """
-        💰 <b>PEMBAYARAN TERDETEKSI!</b>
+        💰 <b>Pembayaran Terdeteksi!</b>
 
-        <blockquote><code>🔍 Status: Pending approval admin</code></blockquote>
+        <blockquote><code>🔍 Status: Menunggu persetujuan admin</code></blockquote>
 
-        <i>Pembayaran mu wis masuk, tunggu admin approve ya!</i>
+        <i>Pembayaran kakak sudah masuk, tunggu admin approve ya! 💕</i>
         """,
 
             # Admin Messages
             "admin_check": """
-        🔍 <b>NGECEK TRAKTEER API...</b>
+        🔍 <b>Mengecek Trakteer API...</b>
 
-        <blockquote><code>⏳ Scanning for new payments...</code></blockquote>
+        <blockquote><code>⏳ Memindai pembayaran baru...</code></blockquote>
         """,
 
             "admin_no_payments": """
-        📊 <b>HASIL SCAN TRAKTEER</b>
+        📊 <b>Hasil Scan Trakteer</b>
 
-        <blockquote><code>ℹ️ Ora ana pembayaran anyar cok.</code></blockquote>
+        <blockquote><code>ℹ️ Tidak ada pembayaran baru.</code></blockquote>
         """,
 
             "admin_sync_success": """
-        📊 <b>HASIL SCAN TRAKTEER</b>
+        📊 <b>Hasil Scan Trakteer</b>
 
-        <blockquote><code>✅ Ketemu {count} pembayaran anyar!</code></blockquote>
+        <blockquote><code>✅ Ditemukan {count} pembayaran baru!</code></blockquote>
 
-        <i>Cek daftar pending kanggo approve/reject!</i>
+        <i>Silakan cek daftar pending untuk approve/reject ya!</i>
         """,
 
             "admin_approved": """
-        ✅ <b>PEMBAYARAN DIAPPROVE!</b>
+        ✅ <b>Pembayaran Disetujui!</b>
 
-        <blockquote><code>👑 User VIP baru wis aktif!</code></blockquote>
+        <blockquote><code>👑 User VIP baru sudah aktif!</code></blockquote>
         """,
 
             "admin_rejected": """
-        ❌ <b>PEMBAYARAN DITOLAK!</b>
+        ❌ <b>Pembayaran Ditolak!</b>
 
-        <blockquote><code>⚠️ User wis dinotifikasi.</code></blockquote>
+        <blockquote><code>⚠️ User sudah dinotifikasi.</code></blockquote>
         """,
 
             "not_admin": """
-        🚫 <b>KOWE ORA ADMIN COK!</b>
+        🚫 <b>Maaf, Akses Terbatas</b>
 
-        <blockquote><code>⛔ Access denied - Admin only command</code></blockquote>
+        <blockquote><code>⛔ Command ini hanya untuk admin</code></blockquote>
         """,
 
             "pending_list": """
-        📋 <b>DAFTAR PEMBAYARAN PENDING</b>
+        📋 <b>Daftar Pembayaran Pending</b>
 
-        <blockquote><code>⏳ Review &amp; approve pembayaran iki:</code></blockquote>
+        <blockquote><code>⏳ Silakan review &amp; approve pembayaran berikut:</code></blockquote>
         """,
 
             # Help Messages
             "help_user": """
-        🤖 <b>PANDUAN LENGKAP BOT DOWNLOADER</b>
+        🌸 <b>Panduan Lengkap Bot Downloader</b>
 
-        <blockquote><code>📖 Baca panduan iki ben paham cara nggunakake bot!</code></blockquote>
+        <blockquote><code>📖 Yuk baca panduan ini supaya bisa pakai bot dengan maksimal!</code></blockquote>
 
-        <b>🎯 COMMAND DASAR:</b>
-        • <code>/start</code> - <i>Mulai bot &amp; lihat welcome message</i>
+        <b>🎯 Command Dasar:</b>
+        • <code>/start</code> - <i>Mulai bot &amp; lihat pesan selamat datang</i>
         • <code>/vip</code> - <i>Lihat paket VIP &amp; beli subscription</i>
-        • <code>/status</code> - <i>Cek status VIP kamu saat ini</i>
+        • <code>/status</code> - <i>Cek status VIP kakak saat ini</i>
         • <code>/help</code> - <i>Tampilkan bantuan lengkap</i>
 
-        <b>📥 CARA DOWNLOAD:</b>
+        <b>📥 Cara Download:</b>
         <blockquote><u>Kirim link langsung ke bot:</u>
         • <code>TikTok</code> - vt.tiktok.com, vm.tiktok.com, tiktok.com
         • <code>Instagram</code> - Post, carousel, album</blockquote>
 
-        <b>💎 PAKET VIP PREMIUM:</b>
+        <b>💎 Paket VIP Premium:</b>
         <pre>
         ⚡ 3 hari    → Rp 5,000
         🔥 7 hari    → Rp 10,000  (Recommended)
@@ -290,40 +290,40 @@ class JawaneseTikTokBot:
         </pre>
 
 
-        <b>⚠️ SISTEM LIMIT:</b>
+        <b>⚠️ Sistem Limit:</b>
         <blockquote>• <code>User Gratis:</code> 10 download/hari
         • <code>User VIP:</code> 100 download/hari <tg-spoiler>(Unlimited)</tg-spoiler></blockquote>
 
-        <b>💳 PANDUAN BAYAR VIP:</b>
-        <blockquote><code>1.</code> Ketik <code>/vip</code> pilih paket
+        <b>💳 Panduan Bayar VIP:</b>
+        <blockquote><code>1.</code> Ketik <code>/vip</code> lalu pilih paket
         <code>2.</code> Klik link pembayaran Trakteer
-        <code>3.</code> Bayar sesuai nominal
+        <code>3.</code> Bayar sesuai nominal yang tertera
         <code>4.</code> Tunggu admin approve (1-24 jam)</blockquote>
 
-        <i>🎉 Selamat menggunakan bot! Ada pertanyaan? Chat admin.</i>
+        <i>🎉 Selamat menggunakan bot! Ada pertanyaan? Chat admin ya! 💕</i>
         """,
 
             "help_admin": """
-        🔐 <b>PANDUAN ADMIN BOT DOWNLOADER</b>
+        🔐 <b>Panduan Admin Bot Downloader</b>
 
-        <blockquote><code>⚡ Command khusus admin - rahasia!</code></blockquote>
+        <blockquote><code>⚡ Command khusus admin</code></blockquote>
 
-        <b>🛠️ COMMAND ADMIN EKSKLUSIF:</b>
+        <b>🛠️ Command Admin:</b>
         • <code>!cek</code> - <i>Sync &amp; cek pembayaran baru dari Trakteer API</i>
-        • <code>!pend</code> - <i>Lihat daftar pembayaran pending manual</i>
+        • <code>!pend</code> - <i>Lihat daftar pembayaran pending</i>
         • <code>!listvip</code> - <i>Lihat daftar semua user VIP aktif</i>
         • <code>!delvip &lt;user_id&gt;</code> - <i>Hapus VIP user tertentu</i>
 
-        <b>👥 AKSES ADMIN:</b>
+        <b>👥 Akses Admin:</b>
         <blockquote><code>🔑 Admin ID:</code> 6185398749, 7027694923</blockquote>
 
-        <b>🔄 FLOW PEMBAYARAN SEMI-OTOMATIS:</b>
+        <b>🔄 Alur Pembayaran Semi-Otomatis:</b>
         <blockquote>
         1️⃣ User request VIP (/vip)
         2️⃣ User bayar via Trakteer 
            Format: VIP_{user_id}_{days}days
         3️⃣ Admin ketik !cek → Bot poll Trakteer API
-        4️⃣ Bot parse &amp; validate payment data
+        4️⃣ Bot parse &amp; validasi data pembayaran
         5️⃣ Admin approve/reject via tombol
         6️⃣ User dapat notifikasi &amp; VIP aktif
         </blockquote>
