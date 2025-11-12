@@ -176,7 +176,7 @@ class JawaneseTikTokBot:
             "payment_generated": """
         💳 <b>LINK BAYAR WIS DIGAWE COK!</b>
 
-        <blockquote><code>🔗 Klik tombol "Bayar Sekarang" neng ngisor iki:</code></blockquote>
+        <blockquote>🔗 Klik tombol "Bayar Sekarang" neng ngisor iki</blockquote>
 
         <b>⚠️ PENTING BANGET:</b>
         <i>Pembayaran bakal otomatis terdeteksi sawise kowe bener² bayar. Ojo cuma klik tombol tok!</i>
@@ -672,7 +672,7 @@ class JawaneseTikTokBot:
 
             # Don't record payment yet - only when user actually pays
             await query.edit_message_text(
-                self.messages["payment_generated"].format(url="tombol di bawah"),
+                self.messages["payment_generated"],
                 reply_markup=reply_markup,
                 parse_mode='HTML'
             )
