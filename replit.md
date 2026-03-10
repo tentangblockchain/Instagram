@@ -8,13 +8,13 @@ This is a Telegram bot written in Python that allows users to download TikTok an
 
 ## Tech Stack
 - **Language**: Python 3.11
-- **Main Framework**: python-telegram-bot (version 20.7)
+- **Main Framework**: python-telegram-bot (version 21.5)
 - **Database**: SQLite (database.db)
-- **Key Libraries**:
-  - yt-dlp: Media downloading
-  - beautifulsoup4: HTML parsing for Instagram carousel
-  - requests: HTTP requests
-  - python-dotenv: Environment configuration
+- **Key Libraries** (Latest as of March 11, 2026):
+  - yt-dlp (2026.3.3): Media downloading
+  - beautifulsoup4 (4.12.3): HTML parsing for Instagram carousel
+  - requests (2.32.3): HTTP requests
+  - python-dotenv (1.1.0): Environment configuration
 
 ## Project Structure
 ```
@@ -72,13 +72,16 @@ python main.py
 - `/help`: Show help message
 
 ## Recent Changes
-- 2025-11-12: Initial Replit setup + Performance Optimization
-  - Created missing config.py file
-  - Installed Python 3.11 and all dependencies
-  - Configured workflow for bot execution
-  - Updated .gitignore to include config.py in version control
-  - Bot successfully running and connected to Telegram API
-  
+- 2026-03-11: **Major Dependency Update to Latest Versions**
+  - Updated python-telegram-bot from 20.7 → 21.5 (latest stable)
+  - Updated yt-dlp to 2026.3.3 (latest with March 2026 fixes)
+  - Updated requests to 2.32.3 (latest stable)
+  - Updated beautifulsoup4 to 4.12.3 (latest stable)
+  - Updated python-dotenv to 1.1.0 (latest stable)
+  - Cleaned up requirements.txt - removed duplicate entries
+  - Removed auto-install code from main.py (dependencies now properly managed via requirements.txt)
+  - **Result: Modernized codebase with all latest security patches and features**
+
 - 2025-11-12: **CRITICAL PERFORMANCE OPTIMIZATION** ⚡
   - **Fixed slow download issue (20+ seconds wasted per failed request)**
   - Implemented Fast-Fail Strategy for rate-limit/fatal errors

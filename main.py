@@ -1,35 +1,11 @@
-# Auto-install telegram library jika belum ada
-import sys
-import subprocess
-
-def ensure_telegram_installed():
-    try:
-        import telegram
-        from telegram import Update
-        print("✅ Telegram library OK")
-        return True
-    except ImportError as e:
-        print(f"❌ Telegram library missing: {e}")
-        try:
-            print("🔄 Installing python-telegram-bot...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "python-telegram-bot[job-queue]==20.7", "--no-cache-dir"])
-            print("✅ Installation complete! Please restart the repl manually.")
-            return False
-        except Exception as install_error:
-            print(f"❌ Installation failed: {install_error}")
-            return False
-
-# Pastikan telegram terinstall
-if not ensure_telegram_installed():
-    print("❌ Cannot start bot - telegram library installation failed")
-    sys.exit(1)
-
 import os
+import sys
 import logging
 import asyncio
 import re
 import html
 from datetime import datetime, timedelta
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.error import TelegramError
