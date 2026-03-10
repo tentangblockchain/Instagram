@@ -24,12 +24,12 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python main.py"
+args = "python bot/main.py"
 
 [workflows.workflow.metadata]
 outputType = "console"
 
 [deployment]
 deploymentTarget = "vm"
-run = ["python", "main.py"]
+run = ["python", "python bot/main.py"]
 build = ["pip", "install", "-r", "requirements.txt"]
