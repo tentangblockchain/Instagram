@@ -31,5 +31,5 @@ outputType = "console"
 
 [deployment]
 deploymentTarget = "vm"
-run = ["python", "python bot/main.py"]
+run = ["python", "bot/main.py"]
 build = ["pip", "install", "-r", "requirements.txt"]
