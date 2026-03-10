@@ -9,11 +9,11 @@ from datetime import datetime, timedelta
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from telegram.error import TelegramError
-from .database import Database
-from .downloaders import TikTokDownloader
-from .downloaders import InstagramDownloader
-from .api import TrakteerAPI
-from .config import Config
+from bot.database import Database
+from bot.downloaders import TikTokDownloader
+from bot.downloaders import InstagramDownloader
+from bot.api import TrakteerAPI
+from bot.config import Config
 
 # Setup logging hanya ke console, level INFO
 logging.basicConfig(
