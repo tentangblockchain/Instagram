@@ -36,15 +36,15 @@ class InstagramDownloader:
         # OPTIMIZED yt-dlp configuration
         self.ydl_opts = {
             'outtmpl': os.path.join(self.download_dir, '%(id)s.%(ext)s'),
-            'format': 'best',  # Single best format
+            'format': 'best',
             'quiet': True,
             'no_warnings': True,
             'extractaudio': False,
-            'socket_timeout': 10,  # CRITICAL: 10 second timeout
-            'retries': 2,  # Max 2 retries
+            'socket_timeout': 10,
+            'retries': 2,
             'fragment_retries': 2,
             'http_chunk_size': 10485760,
-            'concurrent_fragment_downloads': 3,  # Parallel downloads
+            'concurrent_fragment_downloads': 3,
         }
 
     def is_instagram_url(self, url: str) -> bool:

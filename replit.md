@@ -16,14 +16,20 @@ This is a Telegram bot written in Python that allows users to download TikTok an
   - requests (2.32.3): HTTP requests
   - python-dotenv (1.1.0): Environment configuration
 
-## Project Structure
+## Project Structure (Modular)
 ```
-├── main.py                    # Main bot application
-├── config.py                  # Configuration loader from .env
-├── database.py                # SQLite database handler
-├── tiktok_downloader.py       # TikTok download logic
-├── instagram_downloader.py    # Instagram download logic
-├── trakteer_api.py            # Trakteer payment API integration
+├── bot/                       # Main bot package
+│   ├── __init__.py
+│   ├── main.py                # Main bot application
+│   ├── config.py              # Configuration loader from .env
+│   ├── database.py            # SQLite database handler
+│   ├── downloaders/           # Media downloaders
+│   │   ├── __init__.py
+│   │   ├── tiktok.py          # TikTok download logic
+│   │   └── instagram.py       # Instagram download logic
+│   └── api/                   # Payment API integration
+│       ├── __init__.py
+│       └── trakteer.py        # Trakteer payment API
 ├── requirements.txt           # Python dependencies
 ├── .env                       # Environment variables (secrets)
 └── database.db               # SQLite database (auto-created)
