@@ -10,20 +10,9 @@ from collections import defaultdict
 import yt_dlp
 from bs4 import BeautifulSoup
 from typing import Dict, List, Optional
+from ..utils import sanitize_text
 
 logger = logging.getLogger(__name__)
-
-def sanitize_text(text: str) -> str:
-    """Clean text for Telegram caption"""
-    if not text:
-        return ""
-
-    text = re.sub(r'\s+', ' ', text.strip())
-    text = text.replace('\n', ' ').replace('\r', ' ')
-    text = re.sub(r'<[^>]+>', '', text)
-    text = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', text)
-
-    return text.strip()
 
 INSTAGRAM_URL_PATTERN = re.compile(
     r'https?://(www\.)?instagram\.com/([a-zA-Z0-9_\.]+/)?([p|reel|stories]/)?([^/?#&]+)'

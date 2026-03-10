@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Dict, List, Optional
 from urllib.parse import urlencode
-from bot.config import Config
+from ..config import Config
 
 logger = logging.getLogger(__name__)
 
