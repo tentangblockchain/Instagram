@@ -4,7 +4,7 @@ import logging
 import re
 from typing import Dict, List, Optional
 from urllib.parse import urlencode
-from config import Config
+from bot.config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +20,9 @@ class TrakteerAPI:
     
     def generate_payment_url(self, user_id: int, days: int, amount: int, quantity: int) -> str:
         """Generate Trakteer payment URL with user info in support message"""
-        
-        # Create support message that encodes user_id and days (simple format)
         supporter_message = f"{user_id} {days}"
-        
-        # Clean username for display (remove @ if present)
         clean_username = self.config.TRAKTEER_USERNAME.replace("@", "")
         
-        # Trakteer payment URL parameters - matching the format you specified
         params = {
             "quantity": quantity,
             "step": "2",
@@ -35,7 +30,6 @@ class TrakteerAPI:
             "supporter_message": supporter_message
         }
         
-        # Generate the payment URL
         payment_url = f"https://trakteer.id/{self.config.TRAKTEER_USERNAME}/tip?" + urlencode(params)
         
         logger.info(f"Generated payment URL for user {user_id}, {days} days, quantity {quantity}")
@@ -73,7 +67,6 @@ class TrakteerAPI:
     def get_transactions(self, limit: int = 50) -> List[Dict]:
         """Get recent transactions from Trakteer API - using correct endpoint"""
         try:
-            # Use correct Trakteer API endpoint for supports (donations)
             url = "https://api.trakteer.id/v1/public/supports"
             
             response = requests.get(url, headers=self.headers, timeout=10)
@@ -84,17 +77,14 @@ class TrakteerAPI:
             
             # Parse Trakteer API response format
             if isinstance(data, dict) and data.get("status") == "success":
-                # Handle Trakteer API standard response format
                 if data.get("result") and data["result"].get("data"):
                     supports = data["result"]["data"]
                     logger.info(f"Found {len(supports)} supports in API response")
-                    # All payments from API are considered successful
                     return supports
                 else:
                     logger.warning(f"No data found in result: {data}")
                     return []
             elif isinstance(data, list):
-                # Direct list response - fallback
                 return data
             else:
                 logger.error(f"Unexpected response format: {data}")
@@ -132,29 +122,25 @@ class TrakteerAPI:
     
     async def sync_payments(self) -> List[Dict]:
         """Sync payments from Trakteer and update database"""
-        from database import Database
+        from bot.database import Database
         
         db = Database()
         new_payments = []
         
         try:
-            # Get recent transactions
             transactions = self.get_transactions(limit=100)
             logger.info(f"Retrieved {len(transactions)} transactions from Trakteer API")
             
             for transaction in transactions:
-                # Parse transaction data from Trakteer API response format
                 support_message = transaction.get("support_message", "")
                 quantity = transaction.get("quantity", 1)
                 amount = transaction.get("amount", 0)
                 supporter_name = transaction.get("supporter_name", "Unknown")
                 updated_at = transaction.get("updated_at", "")
-                # Generate unique ID from transaction data since no order_id in this format
                 trakteer_id = f"trakteer_{hash(f'{supporter_name}_{support_message}_{amount}_{updated_at}')}"
                 
                 logger.info(f"Processing transaction: {trakteer_id}, message: '{support_message}', quantity: {quantity}, amount: {amount}")
                 
-                # Parse support message format: "user_id days"
                 parsed = self.parse_support_message(support_message)
                 
                 if not parsed:
@@ -167,7 +153,6 @@ class TrakteerAPI:
                 # Validate payment against VIP package
                 if not self.validate_payment(user_id, amount, days):
                     logger.warning(f"Payment validation failed for user {user_id}: amount {amount}, days {days}")
-                    # Still process but mark for manual review
                 
                 # Validate quantity matches expected package quantity
                 expected_quantity = self.get_expected_quantity(days)
@@ -180,12 +165,9 @@ class TrakteerAPI:
                     logger.info(f"Payment {trakteer_id} already exists with status: {existing_payment['status']}, skipping")
                     continue
                 
-                # FINAL FIX: Skip all secondary checks for existing trakteer_id
-                # The trakteer_id is unique per transaction, so if it doesn't exist above, it's truly new
                 logger.info(f"New unique transaction: {trakteer_id} for user {user_id}")
                 
                 # TERTIARY CHECK: Even if user VIP expired/removed, don't process old transactions
-                # Check if this Trakteer transaction is older than 36 hours
                 from datetime import datetime, timedelta
                 try:
                     transaction_time = datetime.strptime(updated_at, '%Y-%m-%d %H:%M:%S')
@@ -193,11 +175,9 @@ class TrakteerAPI:
                         logger.info(f"Skipping old transaction {trakteer_id} from {updated_at} (older than 36 hours)")
                         continue
                 except Exception:
-                    # If parsing fails, continue with processing
                     pass
                 
                 # QUATERNARY CHECK: Check if user ever had VIP from this payment amount/days combo
-                # This prevents reprocessing when VIP naturally expires
                 has_payment_history = db.has_processed_payment_combination(user_id, amount, days)
                 if has_payment_history:
                     logger.info(f"User {user_id} already has payment history for {days} days / Rp{amount:,} - skipping duplicate")
@@ -242,14 +222,14 @@ class TrakteerAPI:
     
     def get_expected_quantity(self, days: int) -> int:
         """Get expected quantity for VIP package"""
-        from main import JawaneseTikTokBot
+        from bot.main import JawaneseTikTokBot
         
         bot = JawaneseTikTokBot()
         return bot.vip_packages.get(days, {}).get("quantity", 0)
     
     def validate_payment(self, user_id: int, amount: int, days: int) -> bool:
         """Validate payment amount against expected VIP package price"""
-        from main import JawaneseTikTokBot
+        from bot.main import JawaneseTikTokBot
         
         bot = JawaneseTikTokBot()
         expected_price = bot.vip_packages.get(days, {}).get("price", 0)
