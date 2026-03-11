@@ -14,6 +14,7 @@ from bot.downloaders import TikTokDownloader
 from bot.downloaders import InstagramDownloader
 from bot.api import TrakteerAPI
 from bot.config import Config
+from bot.constants import VIP_PACKAGES
 
 # Setup logging hanya ke console, level INFO
 logging.basicConfig(
@@ -38,16 +39,8 @@ class JawaneseTikTokBot:
         self.instagram_dl = InstagramDownloader()
         self.trakteer = TrakteerAPI()
 
-        # VIP packages in IDR - matching Trakteer quantity system
-
-        self.vip_packages = {
-            3: {"price": 5000, "name": "3 dina", "quantity": 1},
-            7: {"price": 10000, "name": "7 dina", "quantity": 2},
-            15: {"price": 20000, "name": "15 dina", "quantity": 4},
-            30: {"price": 35000, "name": "30 dina", "quantity": 7},
-            60: {"price": 60000, "name": "60 dina", "quantity": 12},
-            90: {"price": 80000, "name": "90 dina", "quantity": 16}
-        }
+        # VIP packages copy from shared constants (keeps packages in sync)
+        self.vip_packages = VIP_PACKAGES.copy()
 
 
         # Javanese messages (bahasa Jawa kasar) - HTML formatted

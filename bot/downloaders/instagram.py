@@ -20,7 +20,9 @@ INSTAGRAM_URL_PATTERN = re.compile(
 
 class InstagramDownloader:
     def __init__(self):
-        self.download_dir = tempfile.gettempdir()
+        # create and reuse a single subdirectory under the system temp folder
+        self.download_dir = os.path.join(tempfile.gettempdir(), "jawanese_bot_instagram")
+        os.makedirs(self.download_dir, exist_ok=True)
 
         # OPTIMIZED yt-dlp configuration
         self.ydl_opts = {
@@ -273,16 +275,19 @@ class InstagramDownloader:
             return {"success": False, "error": str(e)}
 
     def cleanup_downloads(self):
-        """Clean up old download files"""
+        """Clean up old download files (every file in our temp folder older than 1h)
+        """
         try:
             import time
             for filename in os.listdir(self.download_dir):
-                if filename.startswith('instagram_') or 'Instagram' in filename:
-                    file_path = os.path.join(self.download_dir, filename)
-                    if os.path.isfile(file_path):
-                        file_age = os.path.getctime(file_path)
-                        if (time.time() - file_age) > 3600:
+                file_path = os.path.join(self.download_dir, filename)
+                if os.path.isfile(file_path):
+                    file_age = os.path.getctime(file_path)
+                    if (time.time() - file_age) > 3600:  # 1 hour
+                        try:
                             os.remove(file_path)
                             logger.info(f"Cleaned up old file: {filename}")
+                        except Exception as ee:
+                            logger.error(f"Failed to remove {file_path}: {ee}")
         except Exception as e:
             logger.error(f"Error cleaning up downloads: {e}")
