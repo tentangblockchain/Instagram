@@ -2,9 +2,12 @@ import os
 import requests
 import logging
 import re
+import hashlib
+import asyncio
 from typing import Dict, List, Optional
 from urllib.parse import urlencode
 from ..config import Config
+from bot.constants import VIP_PACKAGES
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +71,11 @@ class TrakteerAPI:
         """Get recent transactions from Trakteer API - using correct endpoint"""
         try:
             url = "https://api.trakteer.id/v1/public/supports"
+            params = {}
+            if limit:
+                params['limit'] = limit
             
-            response = requests.get(url, headers=self.headers, timeout=10)
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
             response.raise_for_status()
             
             data = response.json()
@@ -120,8 +126,13 @@ class TrakteerAPI:
             logger.error(f"Error fetching transaction {transaction_id}: {e}")
             return None
     
+    # make public API async but run heavy work in a thread
     async def sync_payments(self) -> List[Dict]:
-        """Sync payments from Trakteer and update database"""
+        """Async wrapper around blocking payment sync"""
+        return await asyncio.to_thread(self._sync_payments)
+
+    def _sync_payments(self) -> List[Dict]:
+        """Blocking implementation of payment sync (executed in thread)"""
         from bot.database import Database
         
         db = Database()
@@ -222,17 +233,11 @@ class TrakteerAPI:
     
     def get_expected_quantity(self, days: int) -> int:
         """Get expected quantity for VIP package"""
-        from bot.main import JawaneseTikTokBot
-        
-        bot = JawaneseTikTokBot()
-        return bot.vip_packages.get(days, {}).get("quantity", 0)
+        return VIP_PACKAGES.get(days, {}).get("quantity", 0)
     
     def validate_payment(self, user_id: int, amount: int, days: int) -> bool:
         """Validate payment amount against expected VIP package price"""
-        from bot.main import JawaneseTikTokBot
-        
-        bot = JawaneseTikTokBot()
-        expected_price = bot.vip_packages.get(days, {}).get("price", 0)
+        expected_price = VIP_PACKAGES.get(days, {}).get("price", 0)
         
         if expected_price == 0:
             logger.warning(f"No package found for {days} days")
