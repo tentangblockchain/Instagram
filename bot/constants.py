@@ -78,12 +78,12 @@ MESSAGES = {
     "vip_info": (
         "💎 <b>Upgrade VIP Premium</b>\n\n"
         "<blockquote>Pilih durasi paket VIP kamu:</blockquote>\n\n"
-        "• <code>3 hari</code>  — <b>Rp 5.000</b>\n"
-        "• <code>7 hari</code>  — <b>Rp 10.000</b>\n"
-        "• <code>15 hari</code> — <b>Rp 20.000</b>\n"
-        "• <code>30 hari</code> — <b>Rp 35.000</b>\n"
-        "• <code>60 hari</code> — <b>Rp 60.000</b>\n"
-        "• <code>90 hari</code> — <b>Rp 80.000</b>\n\n"
+        "• <code>3 hari</code>  — <b>Rp 1.000</b>\n"
+        "• <code>7 hari</code>  — <b>Rp 50.000</b>\n"
+        "• <code>15 hari</code> — <b>Rp 10.000</b>\n"
+        "• <code>30 hari</code> — <b>Rp 15.000</b>\n"
+        "• <code>60 hari</code> — <b>Rp 20.000</b>\n"
+        "• <code>90 hari</code> — <b>Rp 25.000</b>\n\n"
         "<i>Pembayaran via QRIS, VIP aktif otomatis! 🚀</i>"
     ),
 

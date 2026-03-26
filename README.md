@@ -24,12 +24,12 @@ Bot Telegram untuk mengunduh konten **TikTok** dan **Instagram** lengkap dengan 
 **Paket VIP:**
 | Durasi | Harga |
 |--------|-------|
-| 3 Hari | Rp 5.000 |
-| 7 Hari | Rp 10.000 |
-| 15 Hari | Rp 20.000 |
-| 30 Hari | Rp 35.000 |
-| 60 Hari | Rp 60.000 |
-| 90 Hari | Rp 80.000 |
+| 3 Hari | Rp 1.000 |
+| 7 Hari | Rp 50.000 |
+| 15 Hari | Rp 10.000 |
+| 30 Hari | Rp 15.000 |
+| 60 Hari | Rp 20.000 |
+| 90 Hari | Rp 25.000 |
 
 ### 💳 Pembayaran QRIS Otomatis (Saweria)
 - Bot generate QR Code QRIS langsung di chat
@@ -157,7 +157,7 @@ Untuk admin, muncul tambahan:
 
 ```
 User klik "Upgrade VIP"
-    → Pilih paket (misal: 7 Hari - Rp 10.000)
+    → Pilih paket (misal: 30 Hari - Rp 15.000)
         → Bot buat donasi di Saweria
             → Bot kirim QR Code QRIS ke chat
                 → User scan & bayar (maks. 15 menit)
