@@ -13,7 +13,7 @@ from telegram.ext import (
     ContextTypes, MessageHandler, filters,
 )
 
-from bot.ai_monitor import GroqMonitor
+from bot.ai_monitor import GroqMonitor, get_pending_fix, remove_pending_fix
 from bot.config import Config
 from bot.constants import MESSAGES, VIP_PACKAGES
 from bot.database import Database
@@ -594,6 +594,86 @@ class DownloaderBot:
         )
         logger.info(f"Admin {user_id} menghapus VIP user {target_id}")
 
+    # ── AI Fix Callbacks ─────────────────────────────────────────────────────────
+
+    async def cb_apply_fix(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query   = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer("⛔ Hanya admin yang bisa terapkan fix.", show_alert=True)
+            return
+
+        fix_id  = query.data.replace("apply_fix_", "")
+        fix     = get_pending_fix(fix_id)
+
+        if not fix:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text("❌ Fix sudah tidak tersedia atau sudah diterapkan.")
+            return
+
+        file_path = fix["file_path"]
+        old_code  = fix["old_code"]
+        new_code  = fix["new_code"]
+
+        if not os.path.exists(file_path):
+            await query.message.reply_text(f"❌ File tidak ditemukan: <code>{file_path}</code>", parse_mode="HTML")
+            return
+
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        if old_code not in content:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text(
+                "❌ <b>Patch gagal diterapkan.</b>\n\n"
+                "Kode target tidak ditemukan di file — mungkin sudah berubah.\n"
+                f"<i>Fix ID: {fix_id}</i>",
+                parse_mode="HTML",
+            )
+            return
+
+        backup_path = file_path + ".bak"
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        patched = content.replace(old_code, new_code, 1)
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(patched)
+
+        remove_pending_fix(fix_id)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            f"✅ <b>Fix berhasil diterapkan!</b>\n\n"
+            f"📁 File: <code>{file_path}</code>\n"
+            f"💾 Backup: <code>{backup_path}</code>\n"
+            f"📝 {fix.get('description', '-')}\n\n"
+            f"<i>Bot akan restart dalam 3 detik...</i>",
+            parse_mode="HTML",
+        )
+        logger.info(f"Admin {user_id} terapkan fix {fix_id} pada {file_path}")
+
+        await asyncio.sleep(3)
+        import signal
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    async def cb_dismiss_fix(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query   = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer("⛔ Hanya admin.", show_alert=True)
+            return
+
+        fix_id = query.data.replace("dismiss_fix_", "")
+        remove_pending_fix(fix_id)
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            f"🗑 Fix <code>{fix_id}</code> diabaikan.", parse_mode="HTML"
+        )
+
     # ── AI Error Monitor ─────────────────────────────────────────────────────────
 
     async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE):
@@ -667,7 +747,11 @@ class DownloaderBot:
         app.add_handler(CallbackQueryHandler(self.cb_admin_stats,    pattern=r"^admin_stats$"))
 
         # VIP purchase
-        app.add_handler(CallbackQueryHandler(self.cb_vip_select, pattern=r"^vip_\d+$"))
+        app.add_handler(CallbackQueryHandler(self.cb_vip_select,    pattern=r"^vip_\d+$"))
+
+        # AI fix approval
+        app.add_handler(CallbackQueryHandler(self.cb_apply_fix,   pattern=r"^apply_fix_.+$"))
+        app.add_handler(CallbackQueryHandler(self.cb_dismiss_fix, pattern=r"^dismiss_fix_.+$"))
 
         if app.job_queue:
             app.job_queue.run_repeating(self._job_cleanup_vip, interval=3600)
