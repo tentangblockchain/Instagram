@@ -1,6 +1,7 @@
 import logging
 import traceback
-from datetime import datetime
+from collections import defaultdict
+from datetime import date
 from typing import Optional
 
 import httpx
@@ -10,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 class GroqMonitor:
     API_URL = "https://api.groq.com/openai/v1/chat/completions"
-    MODEL   = "llama-3.1-8b-instant"
 
     SYSTEM_PROMPT = (
         "Kamu adalah AI monitoring assistant untuk Telegram bot downloader (TikTok & Instagram). "
@@ -18,12 +18,34 @@ class GroqMonitor:
         "Selalu jawab dengan format terstruktur dan to the point."
     )
 
-    def __init__(self, api_key: str, admin_ids: list, bot):
-        self.api_key   = api_key
-        self.admin_ids = admin_ids
-        self.bot       = bot
+    MODEL_TIERS = [
+        {"name": "llama-3.3-70b-versatile",                  "daily_limit": 1000,  "quality": 10, "label": "Premium (10/10)"},
+        {"name": "moonshotai/kimi-k2-instruct",               "daily_limit": 1000,  "quality": 9,  "label": "High (9/10)"},
+        {"name": "groq/compound",                             "daily_limit": 250,   "quality": 8,  "label": "Good (8/10)"},
+        {"name": "meta-llama/llama-4-scout-17b-16e-instruct", "daily_limit": 1000,  "quality": 7,  "label": "Scout (7/10)"},
+        {"name": "llama-3.1-8b-instant",                      "daily_limit": 14400, "quality": 6,  "label": "Standard (6/10)"},
+    ]
 
-    async def _call_groq(self, prompt: str) -> Optional[str]:
+    def __init__(self, api_key: str, admin_ids: list, bot):
+        self.api_key    = api_key
+        self.admin_ids  = admin_ids
+        self.bot        = bot
+        self._usage: dict[str, dict] = defaultdict(lambda: {"date": None, "count": 0})
+
+    def _can_use(self, tier: dict) -> bool:
+        name  = tier["name"]
+        today = date.today()
+        entry = self._usage[name]
+        if entry["date"] != today:
+            entry["date"]  = today
+            entry["count"] = 0
+        return entry["count"] < tier["daily_limit"]
+
+    def _record_use(self, name: str) -> None:
+        entry = self._usage[name]
+        entry["count"] += 1
+
+    async def _try_model(self, model_name: str, prompt: str) -> Optional[str]:
         try:
             async with httpx.AsyncClient(timeout=20) as client:
                 resp = await client.post(
@@ -33,7 +55,7 @@ class GroqMonitor:
                         "Content-Type": "application/json",
                     },
                     json={
-                        "model": self.MODEL,
+                        "model": model_name,
                         "messages": [
                             {"role": "system", "content": self.SYSTEM_PROMPT},
                             {"role": "user",   "content": prompt},
@@ -42,21 +64,36 @@ class GroqMonitor:
                         "temperature": 0.2,
                     },
                 )
+                if resp.status_code == 429:
+                    logger.warning(f"Groq rate limit hit: {model_name}")
+                    return None
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
-            logger.error(f"Groq API error: {e}")
+            logger.warning(f"Groq model {model_name} gagal: {e}")
             return None
 
-    async def analyze_and_notify(
-        self,
-        error: Exception,
-        context_info: str = "",
-    ):
+    async def _call_cascade(self, prompt: str) -> tuple[Optional[str], Optional[str]]:
+        for tier in self.MODEL_TIERS:
+            if not self._can_use(tier):
+                logger.info(f"Groq tier '{tier['label']}' skip — limit harian tercapai")
+                continue
+            result = await self._try_model(tier["name"], prompt)
+            if result:
+                self._record_use(tier["name"])
+                logger.info(f"Groq cascade sukses dengan: {tier['label']}")
+                return result, tier["label"]
+            logger.info(f"Groq cascade fallback dari: {tier['label']}")
+        return None, None
+
+    async def analyze_and_notify(self, error: Exception, context_info: str = ""):
         tb_full  = traceback.format_exc()
         tb_short = tb_full[-1500:] if len(tb_full) > 1500 else tb_full
         err_type = type(error).__name__
         err_msg  = str(error)[:300]
+
+        from datetime import datetime
+        now = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
         prompt = f"""Analisa error berikut dari Telegram bot downloader dan berikan laporan singkat:
 
@@ -72,10 +109,10 @@ Berikan dalam format ini (WAJIB):
 🛠 SOLUSI: (langkah konkret untuk memperbaiki, maks 3 poin)
 ⚡ DAMPAK: (apakah bot masih berjalan normal atau tidak)"""
 
-        analysis = await self._call_groq(prompt)
+        analysis, model_label = await self._call_cascade(prompt)
 
-        now      = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-        ai_block = analysis if analysis else "⚠️ Groq tidak tersedia saat ini."
+        ai_block = analysis if analysis else "⚠️ Semua model Groq tidak tersedia saat ini."
+        ai_footer = f"\n<i>Model: {model_label}</i>" if model_label else ""
 
         text = (
             f"🚨 <b>BOT ERROR ALERT</b>\n"
@@ -91,7 +128,7 @@ Berikan dalam format ini (WAJIB):
             f"\n<b>📋 Traceback:</b>\n"
             f"<pre>{tb_short[-800:]}</pre>\n\n"
             f"<b>🤖 Analisa AI (Groq):</b>\n"
-            f"{ai_block}"
+            f"{ai_block}{ai_footer}"
         )
 
         for chunk in _split_message(text):
