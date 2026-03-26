@@ -1,137 +1,101 @@
-# Javanese TikTok & Instagram Downloader Bot
+# TikTok & Instagram Downloader Bot
 
 ## Overview
-This is a Telegram bot written in Python that allows users to download TikTok and Instagram content. It features a VIP subscription system with Trakteer payment integration and uses Javanese language (bahasa Jawa kasar) for messages.
-
-## Project Type
-**Backend Application** - Telegram Bot (No web frontend)
+Telegram bot Python untuk download konten TikTok dan Instagram. Dilengkapi sistem VIP berbasis pembayaran QRIS otomatis via Saweria.
 
 ## Tech Stack
 - **Language**: Python 3.11
-- **Main Framework**: python-telegram-bot (version 21.5)
+- **Framework**: python-telegram-bot 21.5
 - **Database**: SQLite (database.db)
-- **Key Libraries** (Latest as of March 11, 2026):
-  - yt-dlp (2026.3.3): Media downloading
-  - beautifulsoup4 (4.12.3): HTML parsing for Instagram carousel
-  - requests (2.32.3): HTTP requests
-  - python-dotenv (1.1.0): Environment configuration
+- **Payment**: Saweria QRIS (auto-detect via polling)
+- **Key Libraries**:
+  - yt-dlp 2026.3.3 — Media downloading
+  - beautifulsoup4 4.12.3 — HTML parsing
+  - qrcode + Pillow — Generate QR image
+  - python-dotenv 1.1.0 — Environment config
 
-## Project Structure (Modular)
+## Project Structure
 ```
-├── bot/                       # Main bot package
+├── bot/
 │   ├── __init__.py
-│   ├── main.py                # Main bot application
-│   ├── config.py              # Configuration loader from .env
-│   ├── database.py            # SQLite database handler
-│   ├── downloaders/           # Media downloaders
+│   ├── main.py             # Entry point & semua handler
+│   ├── config.py           # Config loader dari env
+│   ├── constants.py        # VIP packages & semua pesan
+│   ├── database.py         # SQLite handler
+│   ├── payment/
 │   │   ├── __init__.py
-│   │   ├── tiktok.py          # TikTok download logic
-│   │   └── instagram.py       # Instagram download logic
-│   └── api/                   # Payment API integration
+│   │   └── saweria.py      # Saweria API (curl bypass Cloudflare)
+│   └── downloaders/
 │       ├── __init__.py
-│       └── trakteer.py        # Trakteer payment API
-├── requirements.txt           # Python dependencies
-├── .env                       # Environment variables (secrets)
-└── database.db               # SQLite database (auto-created)
+│       ├── tiktok.py
+│       └── instagram.py
+├── requirements.txt
+└── database.db             # Auto-created
 ```
 
-## Features
-1. **TikTok Downloads**: Videos and photos
-2. **Instagram Downloads**: Posts, carousels, albums
-3. **VIP System**: 
-   - Free users: 10 downloads/day
-   - VIP users: 100 downloads/day
-   - Packages: 3, 7, 15, 30, 60, 90 days
-4. **Payment Integration**: Trakteer payment gateway
-5. **Channel Membership Check**: Require users to join specific channels
-6. **Admin Commands**: Payment approval, VIP management, statistics
+## Environment Variables
+| Variable | Wajib | Keterangan |
+|---|---|---|
+| `BOT_TOKEN` | ✅ | Token dari @BotFather |
+| `ADMIN_IDS` | ✅ | User ID admin, pisah koma |
+| `REQUIRED_CHANNEL` | ❌ | Channel wajib join sebelum download |
+| `SAWERIA_USERNAME` | ✅ | Username Saweria (tanpa @) |
+| `SAWERIA_USER_ID` | ✅ | UUID Saweria (dari DevTools Network tab) |
+| `FREE_DAILY_LIMIT` | ❌ | Limit download user gratis (default: 10) |
+| `VIP_DAILY_LIMIT` | ❌ | Limit download VIP (default: 100) |
+| `DATABASE_PATH` | ❌ | Path file SQLite (default: database.db) |
 
-## Setup & Configuration
-
-### Environment Variables (.env)
-Required variables:
-- `BOT_TOKEN`: Telegram bot token from @BotFather
-- `ADMIN_IDS`: Comma-separated admin user IDs
-- `REQUIRED_CHANNEL`: Telegram channel(s) users must join
-- `TRAKTEER_API_KEY`: Trakteer API key
-- `TRAKTEER_USERNAME`: Trakteer username
-- `FREE_DAILY_LIMIT`: Free user download limit (default: 10)
-- `VIP_DAILY_LIMIT`: VIP user download limit (default: 100)
-
-### Running the Bot
-The bot runs via the `telegram-bot` workflow:
-```bash
-python main.py
-```
-
-## Admin Commands
-- `!cek` or `!cp`: Check and sync new payments from Trakteer
-- `!pend` or `!pa`: List pending payments
-- `!listvip`: List all active VIP users
-- `!delvip <user_id>`: Remove VIP status from user
-- `!debug`: Debug information
+## Alur Pembayaran VIP (Fully Automatic)
+1. User ketik `/vip` → pilih paket
+2. Bot hit Saweria API → buat transaksi QRIS
+3. Bot generate QR image → kirim ke user
+4. Bot polling status tiap **7 detik** (max **15 menit**)
+5. Setelah bayar → VIP **otomatis aktif** tanpa perlu admin approve
 
 ## User Commands
-- `/start`: Start the bot and register
-- `/vip`: View VIP packages and purchase
-- `/status`: Check VIP status
-- `/help`: Show help message
+- `/start` — Mulai bot
+- `/vip` — Lihat paket & bayar VIP
+- `/status` — Cek status VIP
+- `/help` — Bantuan
 
-## Recent Changes
-- 2026-03-11: **Major Dependency Update to Latest Versions**
-  - Updated python-telegram-bot from 20.7 → 21.5 (latest stable)
-  - Updated yt-dlp to 2026.3.3 (latest with March 2026 fixes)
-  - Updated requests to 2.32.3 (latest stable)
-  - Updated beautifulsoup4 to 4.12.3 (latest stable)
-  - Updated python-dotenv to 1.1.0 (latest stable)
-  - Cleaned up requirements.txt - removed duplicate entries
-  - Removed auto-install code from main.py (dependencies now properly managed via requirements.txt)
-  - **Result: Modernized codebase with all latest security patches and features**
+## Admin Commands (kirim sebagai pesan biasa)
+- `!listvip` — Daftar semua VIP aktif
+- `!delvip <user_id>` — Hapus VIP user
+- `!stats` — Statistik bot
 
-- 2025-11-12: **CRITICAL PERFORMANCE OPTIMIZATION** ⚡
-  - **Fixed slow download issue (20+ seconds wasted per failed request)**
-  - Implemented Fast-Fail Strategy for rate-limit/fatal errors
-  - Optimized timeouts: Added socket_timeout=10s to prevent hanging
-  - Single format attempt instead of 5 sequential tries
-  - Better error detection (rate-limit, auth, fatal errors)
-  - Fixed database type safety (Optional[str] for trakteer_id)
-  - **Result: 3-5x faster response time, especially on errors**
+## VIP Packages
+| Durasi | Harga |
+|---|---|
+| 3 hari | Rp 5.000 |
+| 7 hari | Rp 10.000 |
+| 15 hari | Rp 20.000 |
+| 30 hari | Rp 35.000 |
+| 60 hari | Rp 60.000 |
+| 90 hari | Rp 80.000 |
 
 ## Database Schema
-### Tables
-1. **users**: User registration and VIP status
-2. **downloads**: Download tracking for limits
-3. **payments**: Payment records and approval workflow
+- **users** — Registrasi user & status VIP
+- **downloads** — Tracking download harian
+- **payments** — Rekaman transaksi Saweria
 
-## Architecture Notes
-- Uses SQLite for simplicity (single-user admin bot)
-- Downloads are stored in temp directory and cleaned up after sending
-- Semi-automatic payment system: Trakteer API detects payments, admin approves
-- VIP expiry is checked on-demand and via scheduled cleanup task
+## Saweria API Notes
+- Menggunakan `curl` via subprocess untuk bypass Cloudflare TLS fingerprinting
+- Endpoint calculate: `POST /donations/{username}/calculate_pg_amount`
+- Endpoint create: `POST /donations/snap/{user_id}`
+- Endpoint status: `GET /donations/qris/snap/{donation_id}`
+- QR valid selama **15 menit** sesuai batas Saweria
 
-## Known Configuration
-- Admin IDs: 6185398749, 7027694923
-- Required Channel: @silviaroyshita_88
-- Trakteer Username: yovica
+## Workflow
+- Command: `python -m bot.main`
+- Output: console
 
-## GitHub Repository
-**Official Repository**: https://github.com/tentangblockchain/Instagram
-
-## Deployment Options
-### Option 1: PM2 (VPS/Server)
-- Use `bash start-pm2.sh` untuk start dengan PM2
-- Auto-restart, monitoring, dan logs management
-- File config: `ecosystem.config.js`
-
-### Option 2: Replit Reserved VM
-- Deploy via Replit Deploy button
-- Choose "Reserved VM" deployment type
-- Bot akan running 24/7
-- Config sudah ada di `.replit` file
-
-## Performance Optimizations (Nov 12, 2025)
-- ✅ Fast-fail strategy untuk rate-limit errors (15-20 detik lebih cepat)
-- ✅ Socket timeout optimization (10 detik)
-- ✅ Single format attempt instead of 5 formats
-- ✅ Concurrent fragment downloads
-- ✅ Better error detection untuk Instagram/TikTok
+## Recent Changes
+- 2026-03-26: **Migrasi Trakteer → Saweria + Full Refactor**
+  - Ganti payment gateway dari Trakteer ke Saweria QRIS
+  - Pembayaran kini fully automatic (tidak perlu admin approve)
+  - Bot generate QR image dan polling status otomatis
+  - Full refactor kode: bersih, modular, async proper
+  - DB migration: kolom `trakteer_id` → `donation_id`
+  - Hapus command `!cek`, `!pend` (tidak diperlukan lagi)
+  - Tambah `!stats` untuk statistik bot
+  - Tambah package `qrcode + Pillow` untuk generate QR image
