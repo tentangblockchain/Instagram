@@ -39,7 +39,7 @@ echo "✅ Python $PYTHON_VER ditemukan"
 echo "📦 Mengecek dependencies..."
 if ! python3 -c "import telegram" &>/dev/null; then
   echo "📦 Install dependencies..."
-  pip3 install -r requirements.txt
+  pip install -r requirements.txt --break-system-packages
 else
   echo "✅ Dependencies sudah terpasang"
 fi
