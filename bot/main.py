@@ -13,7 +13,11 @@ from telegram.ext import (
     ContextTypes, MessageHandler, filters,
 )
 
-from bot.ai_monitor import GroqMonitor, get_pending_fix, remove_pending_fix
+from bot.ai_monitor import (
+    GroqMonitor,
+    get_pending_fix, remove_pending_fix,
+    save_rollback, get_rollback, remove_rollback, list_rollbacks,
+)
 from bot.config import Config
 from bot.constants import MESSAGES, VIP_PACKAGES
 from bot.database import Database
@@ -76,10 +80,11 @@ def _kb_back() -> InlineKeyboardMarkup:
 def _kb_admin() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("👥 List VIP",   callback_data="admin_listvip"),
-            InlineKeyboardButton("📊 Statistik",  callback_data="admin_stats"),
+            InlineKeyboardButton("👥 List VIP",        callback_data="admin_listvip"),
+            InlineKeyboardButton("📊 Statistik",        callback_data="admin_stats"),
         ],
-        [InlineKeyboardButton("🔙 Kembali", callback_data="menu_main")],
+        [InlineKeyboardButton("🔄 Riwayat Rollback",   callback_data="admin_rollback_list")],
+        [InlineKeyboardButton("🔙 Kembali",             callback_data="menu_main")],
     ])
 
 
@@ -643,14 +648,23 @@ class DownloaderBot:
             f.write(patched)
 
         remove_pending_fix(fix_id)
+        save_rollback(fix_id, file_path, backup_path, fix.get("description", "-"))
+
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        rollback_kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔄 Rollback Fix Ini", callback_data=f"rollback_{fix_id}"),
+        ]])
+
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
             f"✅ <b>Fix berhasil diterapkan!</b>\n\n"
             f"📁 File: <code>{file_path}</code>\n"
-            f"💾 Backup: <code>{backup_path}</code>\n"
+            f"💾 Backup tersimpan: <code>{backup_path}</code>\n"
             f"📝 {fix.get('description', '-')}\n\n"
+            f"<i>⚠️ Jika bot malah rusak setelah restart, tekan tombol Rollback di bawah.</i>\n"
             f"<i>Bot akan restart dalam 3 detik...</i>",
             parse_mode="HTML",
+            reply_markup=rollback_kb,
         )
         logger.info(f"Admin {user_id} terapkan fix {fix_id} pada {file_path}")
 
@@ -672,6 +686,95 @@ class DownloaderBot:
         await query.edit_message_reply_markup(reply_markup=None)
         await query.message.reply_text(
             f"🗑 Fix <code>{fix_id}</code> diabaikan.", parse_mode="HTML"
+        )
+
+    async def cb_rollback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query   = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer("⛔ Hanya admin.", show_alert=True)
+            return
+
+        rollback_id = query.data.replace("rollback_", "")
+        entry       = get_rollback(rollback_id)
+
+        if not entry:
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text("❌ Data rollback tidak ditemukan atau sudah digunakan.")
+            return
+
+        file_path   = entry["file_path"]
+        backup_path = entry["backup_path"]
+
+        if not os.path.exists(backup_path):
+            await query.edit_message_reply_markup(reply_markup=None)
+            await query.message.reply_text(
+                f"❌ <b>Rollback gagal.</b>\nFile backup tidak ditemukan: <code>{backup_path}</code>",
+                parse_mode="HTML",
+            )
+            return
+
+        with open(backup_path, "r", encoding="utf-8") as f:
+            original = f.read()
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(original)
+
+        os.remove(backup_path)
+        remove_rollback(rollback_id)
+
+        await query.edit_message_reply_markup(reply_markup=None)
+        await query.message.reply_text(
+            f"🔄 <b>Rollback berhasil!</b>\n\n"
+            f"📁 File: <code>{file_path}</code>\n"
+            f"📝 {entry.get('description', '-')}\n"
+            f"🕐 Fix diterapkan: {entry.get('applied_at', '-')}\n\n"
+            f"<i>File dikembalikan ke kondisi sebelum fix.\nBot akan restart dalam 3 detik...</i>",
+            parse_mode="HTML",
+        )
+        logger.info(f"Admin {user_id} rollback {rollback_id} pada {file_path}")
+
+        await asyncio.sleep(3)
+        import signal
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    async def cb_rollback_list(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query   = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer("⛔ Hanya admin.", show_alert=True)
+            return
+
+        entries = list_rollbacks()
+        if not entries:
+            await query.edit_message_text(
+                "📭 <b>Tidak ada riwayat rollback tersedia.</b>",
+                reply_markup=_kb_admin(),
+                parse_mode="HTML",
+            )
+            return
+
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        lines = ["🔄 <b>Riwayat Fix yang Bisa Di-rollback:</b>\n"]
+        rows  = []
+        for e in entries[-10:]:
+            lines.append(
+                f"• <code>{e['id']}</code> — {e.get('description', '-')[:40]}\n"
+                f"  📁 {e['file_path']} | 🕐 {e.get('applied_at', '-')}"
+            )
+            rows.append([InlineKeyboardButton(
+                f"🔄 Rollback {e['id']}",
+                callback_data=f"rollback_{e['id']}",
+            )])
+
+        rows.append([InlineKeyboardButton("🔙 Kembali", callback_data="menu_admin")])
+        await query.edit_message_text(
+            "\n".join(lines),
+            reply_markup=InlineKeyboardMarkup(rows),
+            parse_mode="HTML",
         )
 
     # ── AI Error Monitor ─────────────────────────────────────────────────────────
@@ -749,9 +852,11 @@ class DownloaderBot:
         # VIP purchase
         app.add_handler(CallbackQueryHandler(self.cb_vip_select,    pattern=r"^vip_\d+$"))
 
-        # AI fix approval
-        app.add_handler(CallbackQueryHandler(self.cb_apply_fix,   pattern=r"^apply_fix_.+$"))
-        app.add_handler(CallbackQueryHandler(self.cb_dismiss_fix, pattern=r"^dismiss_fix_.+$"))
+        # AI fix approval & rollback
+        app.add_handler(CallbackQueryHandler(self.cb_apply_fix,      pattern=r"^apply_fix_.+$"))
+        app.add_handler(CallbackQueryHandler(self.cb_dismiss_fix,    pattern=r"^dismiss_fix_.+$"))
+        app.add_handler(CallbackQueryHandler(self.cb_rollback,       pattern=r"^rollback_.+$"))
+        app.add_handler(CallbackQueryHandler(self.cb_rollback_list,  pattern=r"^admin_rollback_list$"))
 
         if app.job_queue:
             app.job_queue.run_repeating(self._job_cleanup_vip, interval=3600)
