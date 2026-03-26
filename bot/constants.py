@@ -130,6 +130,39 @@ MESSAGES = {
         "<i>Coba lagi lewat menu VIP ya kak 🙏</i>"
     ),
 
+    "free_vip_join_channels": (
+        "🎁 <b>VIP Gratis 1 Hari</b>\n\n"
+        "<blockquote>Join semua channel sponsor berikut dulu ya kak:\n\n"
+        "{channels}</blockquote>\n\n"
+        "Setelah join semua, tekan tombol <b>✅ Sudah Join</b> di bawah! 💕"
+    ),
+
+    "free_vip_not_member": (
+        "❌ <b>Belum Join Semua Channel</b>\n\n"
+        "<blockquote>Kamu belum join semua channel berikut:\n\n"
+        "{channels}</blockquote>\n\n"
+        "<i>Join dulu ya kak, baru klaim VIP gratis! 🙏</i>"
+    ),
+
+    "free_vip_already_active": (
+        "✅ <b>VIP Kamu Masih Aktif!</b>\n\n"
+        "<blockquote>VIP berlaku sampai: <code>{expires}</code></blockquote>\n\n"
+        "<i>Klaim lagi setelah VIP habis ya kak~ 💎</i>"
+    ),
+
+    "free_vip_success": (
+        "🎉 <b>VIP Gratis Berhasil Diklaim!</b>\n\n"
+        "<blockquote>✅ VIP <b>1 hari</b> sudah aktif!\n"
+        "Berlaku sampai: <code>{expires}</code></blockquote>\n\n"
+        "<i>Klaim lagi besok dengan tetap stay di channel sponsor ya! 🌸</i>"
+    ),
+
+    "free_vip_no_channels": (
+        "⚙️ <b>VIP Gratis Belum Dikonfigurasi</b>\n\n"
+        "<blockquote>Fitur ini memerlukan channel sponsor.\n"
+        "Hubungi admin untuk informasi lebih lanjut.</blockquote>"
+    ),
+
     "not_admin": (
         "🚫 <b>Akses Terbatas</b>\n\n"
         "<blockquote><code>⛔ Menu ini hanya untuk admin</code></blockquote>"

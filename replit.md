@@ -90,6 +90,14 @@ Telegram bot Python untuk download konten TikTok dan Instagram. Dilengkapi siste
 - Output: console
 
 ## Recent Changes
+- 2026-03-26: **Fitur VIP Gratis 1 Hari (Anti-Join & Leave)**
+  - Tambah tombol "🎁 VIP Gratis" di menu utama
+  - Flow: klik → tampil daftar channel sponsor → join semua → klaim → VIP 1 hari aktif
+  - Setiap klaim bot re-check membership secara real-time via Telegram API
+  - Jika user cabut dari channel, tidak bisa klaim ulang keesokan harinya
+  - User dengan VIP aktif (paid maupun free) tidak bisa klaim dobel
+  - Channel `@username` otomatis jadi tombol link langsung ke channel
+
 - 2026-03-26: **Migrasi Trakteer → Saweria + Full Refactor**
   - Ganti payment gateway dari Trakteer ke Saweria QRIS
   - Pembayaran kini fully automatic (tidak perlu admin approve)
