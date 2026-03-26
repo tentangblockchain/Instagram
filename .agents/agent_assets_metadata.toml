@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "s94i0HZXsJUUlLQNRuW4v"
+uri = "file://README.md"
+type = "text"
+title = "README.md — Bot Downloader TikTok & Instagram"
