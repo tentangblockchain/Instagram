@@ -11,7 +11,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-PENDING_FIXES_FILE = "pending_fixes.json"
+PENDING_FIXES_FILE  = "pending_fixes.json"
+ROLLBACK_STORE_FILE = "rollback_store.json"
 
 
 # ── Pending fix storage ───────────────────────────────────────────────────────
@@ -39,6 +40,49 @@ def remove_pending_fix(fix_id: str) -> None:
     fixes = _load_fixes()
     fixes.pop(fix_id, None)
     _save_fixes(fixes)
+
+
+# ── Rollback storage ──────────────────────────────────────────────────────────
+
+def _load_rollbacks() -> dict:
+    if os.path.exists(ROLLBACK_STORE_FILE):
+        try:
+            with open(ROLLBACK_STORE_FILE, "r") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_rollbacks(data: dict) -> None:
+    with open(ROLLBACK_STORE_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def save_rollback(rollback_id: str, file_path: str, backup_path: str, description: str) -> None:
+    data = _load_rollbacks()
+    data[rollback_id] = {
+        "file_path":   file_path,
+        "backup_path": backup_path,
+        "description": description,
+        "applied_at":  datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
+    }
+    _save_rollbacks(data)
+
+
+def get_rollback(rollback_id: str) -> Optional[dict]:
+    return _load_rollbacks().get(rollback_id)
+
+
+def remove_rollback(rollback_id: str) -> None:
+    data = _load_rollbacks()
+    data.pop(rollback_id, None)
+    _save_rollbacks(data)
+
+
+def list_rollbacks() -> list:
+    data = _load_rollbacks()
+    return [{"id": k, **v} for k, v in data.items()]
 
 
 # ── Groq Monitor ─────────────────────────────────────────────────────────────
