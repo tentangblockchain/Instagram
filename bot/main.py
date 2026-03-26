@@ -36,10 +36,23 @@ def _kb_main(is_admin: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton("💎 Upgrade VIP",  callback_data="menu_vip"),
             InlineKeyboardButton("👑 Status VIP",   callback_data="menu_status"),
         ],
-        [InlineKeyboardButton("📥 Cara Download",   callback_data="menu_cara_dl")],
+        [
+            InlineKeyboardButton("🎁 VIP Gratis",   callback_data="menu_free_vip"),
+            InlineKeyboardButton("📥 Cara Download", callback_data="menu_cara_dl"),
+        ],
     ]
     if is_admin:
         rows.append([InlineKeyboardButton("🔐 Admin Panel", callback_data="menu_admin")])
+    return InlineKeyboardMarkup(rows)
+
+
+def _kb_channels(channels: list) -> InlineKeyboardMarkup:
+    rows = []
+    for ch in channels:
+        if ch.startswith("@"):
+            rows.append([InlineKeyboardButton(f"📢 Join {ch}", url=f"https://t.me/{ch[1:]}")])
+    rows.append([InlineKeyboardButton("✅ Sudah Join — Klaim VIP Gratis!", callback_data="free_vip_claim")])
+    rows.append([InlineKeyboardButton("🔙 Kembali", callback_data="menu_main")])
     return InlineKeyboardMarkup(rows)
 
 
@@ -325,6 +338,67 @@ class DownloaderBot:
             parse_mode="HTML",
         )
 
+    async def cb_menu_free_vip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query   = update.callback_query
+        await query.answer()
+        user_id = query.from_user.id
+
+        if self.db.is_user_vip(user_id):
+            vip_info = self.db.get_vip_status(user_id)
+            await query.edit_message_text(
+                MESSAGES["free_vip_already_active"].format(expires=vip_info["expires_at"]),
+                reply_markup=_kb_back(),
+                parse_mode="HTML",
+            )
+            return
+
+        if not self.config.REQUIRED_CHANNELS:
+            await query.edit_message_text(
+                MESSAGES["free_vip_no_channels"],
+                reply_markup=_kb_back(),
+                parse_mode="HTML",
+            )
+            return
+
+        channels_text = "\n".join(f"• {ch}" for ch in self.config.REQUIRED_CHANNELS)
+        await query.edit_message_text(
+            MESSAGES["free_vip_join_channels"].format(channels=channels_text),
+            reply_markup=_kb_channels(self.config.REQUIRED_CHANNELS),
+            parse_mode="HTML",
+        )
+
+    async def cb_free_vip_claim(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query   = update.callback_query
+        await query.answer()
+        user_id = query.from_user.id
+
+        if self.db.is_user_vip(user_id):
+            vip_info = self.db.get_vip_status(user_id)
+            await query.edit_message_text(
+                MESSAGES["free_vip_already_active"].format(expires=vip_info["expires_at"]),
+                reply_markup=_kb_back(),
+                parse_mode="HTML",
+            )
+            return
+
+        if self.config.REQUIRED_CHANNELS and not await self._check_membership(user_id, context.bot):
+            channels_text = "\n".join(f"• {ch}" for ch in self.config.REQUIRED_CHANNELS)
+            await query.edit_message_text(
+                MESSAGES["free_vip_not_member"].format(channels=channels_text),
+                reply_markup=_kb_channels(self.config.REQUIRED_CHANNELS),
+                parse_mode="HTML",
+            )
+            return
+
+        expires_at = datetime.now() + timedelta(days=1)
+        self.db.activate_vip(user_id, expires_at)
+        logger.info(f"VIP gratis diklaim: user {user_id}, sampai {expires_at}")
+        await query.edit_message_text(
+            MESSAGES["free_vip_success"].format(expires=expires_at.strftime("%d %B %Y %H:%M")),
+            reply_markup=_kb_back(),
+            parse_mode="HTML",
+        )
+
     async def cb_menu_admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query   = update.callback_query
         user_id = query.from_user.id
@@ -537,13 +611,15 @@ class DownloaderBot:
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text))
 
         # Menu callbacks
-        app.add_handler(CallbackQueryHandler(self.cb_menu_main,     pattern=r"^menu_main$"))
-        app.add_handler(CallbackQueryHandler(self.cb_menu_vip,      pattern=r"^menu_vip$"))
-        app.add_handler(CallbackQueryHandler(self.cb_menu_status,   pattern=r"^menu_status$"))
-        app.add_handler(CallbackQueryHandler(self.cb_menu_cara_dl,  pattern=r"^menu_cara_dl$"))
-        app.add_handler(CallbackQueryHandler(self.cb_menu_admin,    pattern=r"^menu_admin$"))
-        app.add_handler(CallbackQueryHandler(self.cb_admin_listvip, pattern=r"^admin_listvip$"))
-        app.add_handler(CallbackQueryHandler(self.cb_admin_stats,   pattern=r"^admin_stats$"))
+        app.add_handler(CallbackQueryHandler(self.cb_menu_main,      pattern=r"^menu_main$"))
+        app.add_handler(CallbackQueryHandler(self.cb_menu_vip,       pattern=r"^menu_vip$"))
+        app.add_handler(CallbackQueryHandler(self.cb_menu_status,    pattern=r"^menu_status$"))
+        app.add_handler(CallbackQueryHandler(self.cb_menu_cara_dl,   pattern=r"^menu_cara_dl$"))
+        app.add_handler(CallbackQueryHandler(self.cb_menu_free_vip,  pattern=r"^menu_free_vip$"))
+        app.add_handler(CallbackQueryHandler(self.cb_free_vip_claim, pattern=r"^free_vip_claim$"))
+        app.add_handler(CallbackQueryHandler(self.cb_menu_admin,     pattern=r"^menu_admin$"))
+        app.add_handler(CallbackQueryHandler(self.cb_admin_listvip,  pattern=r"^admin_listvip$"))
+        app.add_handler(CallbackQueryHandler(self.cb_admin_stats,    pattern=r"^admin_stats$"))
 
         # VIP purchase
         app.add_handler(CallbackQueryHandler(self.cb_vip_select, pattern=r"^vip_\d+$"))
