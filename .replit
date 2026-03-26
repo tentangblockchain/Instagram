@@ -33,3 +33,16 @@ outputType = "console"
 deploymentTarget = "vm"
 run = ["python", "bot/main.py"]
 build = ["pip", "install", "-r", "requirements.txt"]
+
+[userenv]
+
+[userenv.shared]
+ADMIN_IDS = "6185398749,7027694923"
+REQUIRED_CHANNEL = "@silviaroyshita_88"
+MAX_DOWNLOADS_PER_DAY = "10"
+FREE_DAILY_LIMIT = "10"
+VIP_DAILY_LIMIT = "100"
+TRAKTEER_USERNAME = "yovica"
+DATABASE_PATH = "database.db"
+DEBUG = "False"
+LOG_LEVEL = "INFO"
