@@ -3,9 +3,11 @@ import logging
 import os
 import re
 import sys
+import time
 from datetime import datetime, timedelta
 
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import NetworkError, TimedOut
 from telegram.ext import (
     Application, CallbackQueryHandler, CommandHandler,
     ContextTypes, MessageHandler, filters,
@@ -600,7 +602,15 @@ class DownloaderBot:
     def run(self):
         logger.info("🤖 Memulai Bot Downloader...")
 
-        app = Application.builder().token(self.config.BOT_TOKEN).build()
+        app = (
+            Application.builder()
+            .token(self.config.BOT_TOKEN)
+            .connect_timeout(30)
+            .read_timeout(30)
+            .write_timeout(30)
+            .pool_timeout(30)
+            .build()
+        )
 
         # Commands
         app.add_handler(CommandHandler("start", self.cmd_start))
@@ -643,12 +653,19 @@ def _safe_delete(path: str) -> None:
 # ── Entry point ──────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    try:
-        DownloaderBot().run()
-    except ValueError as e:
-        logger.error(f"Konfigurasi error: {e}")
-        print(f"❌ Konfigurasi error: {e}")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Error kritis: {e}")
-        sys.exit(1)
+    retry_delay = 5
+    while True:
+        try:
+            DownloaderBot().run()
+            break
+        except ValueError as e:
+            logger.error(f"Konfigurasi error: {e}")
+            print(f"❌ Konfigurasi error: {e}")
+            sys.exit(1)
+        except (NetworkError, TimedOut) as e:
+            logger.warning(f"⚠️ Network error sementara: {e} — retry dalam {retry_delay}s...")
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, 60)
+        except Exception as e:
+            logger.error(f"Error kritis: {e}")
+            sys.exit(1)
