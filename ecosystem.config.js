@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "telegram-bot",
+      name: "downloader-ig-vt",
 
       // Jalankan sebagai modul Python
       script: "python3",

@@ -13,6 +13,7 @@ from telegram.ext import (
     ContextTypes, MessageHandler, filters,
 )
 
+from bot.ai_monitor import GroqMonitor
 from bot.config import Config
 from bot.constants import MESSAGES, VIP_PACKAGES
 from bot.database import Database
@@ -96,6 +97,7 @@ class DownloaderBot:
             user_id=self.config.SAWERIA_USER_ID,
         )
         self._polling_tasks: dict[str, asyncio.Task] = {}
+        self.monitor: GroqMonitor | None = None
 
     # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -592,6 +594,28 @@ class DownloaderBot:
         )
         logger.info(f"Admin {user_id} menghapus VIP user {target_id}")
 
+    # ── AI Error Monitor ─────────────────────────────────────────────────────────
+
+    async def error_handler(self, update: object, context: ContextTypes.DEFAULT_TYPE):
+        error = context.error
+        logger.error("Unhandled exception:", exc_info=error)
+
+        if not self.monitor or not error:
+            return
+
+        ctx_parts = []
+        if isinstance(update, Update):
+            if update.effective_user:
+                u = update.effective_user
+                ctx_parts.append(f"User: {u.id} (@{u.username or '-'})")
+            if update.effective_message and update.effective_message.text:
+                ctx_parts.append(f"Pesan: {update.effective_message.text[:100]}")
+            if update.callback_query:
+                ctx_parts.append(f"Callback: {update.callback_query.data}")
+
+        context_info = " | ".join(ctx_parts)
+        await self.monitor.analyze_and_notify(error, context_info)
+
     # ── Job queue ────────────────────────────────────────────────────────────────
 
     async def _job_cleanup_vip(self, context: ContextTypes.DEFAULT_TYPE):
@@ -611,6 +635,18 @@ class DownloaderBot:
             .pool_timeout(30)
             .build()
         )
+
+        if self.config.GROQ_API_KEY:
+            self.monitor = GroqMonitor(
+                api_key=self.config.GROQ_API_KEY,
+                admin_ids=self.config.ADMIN_IDS,
+                bot=app.bot,
+            )
+            logger.info("🤖 Groq AI Monitor aktif")
+        else:
+            logger.warning("⚠️ GROQ_API_KEY tidak diset — AI Monitor tidak aktif")
+
+        app.add_error_handler(self.error_handler)
 
         # Commands
         app.add_handler(CommandHandler("start", self.cmd_start))

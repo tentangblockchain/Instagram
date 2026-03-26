@@ -26,7 +26,9 @@ class Config:
         self.SAWERIA_USER_ID = os.getenv("SAWERIA_USER_ID", "")
 
         self.DATABASE_PATH = os.getenv("DATABASE_PATH", "database.db")
-        self.DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-        self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+        self.DEBUG         = os.getenv("DEBUG", "False").lower() == "true"
+        self.LOG_LEVEL     = os.getenv("LOG_LEVEL", "INFO")
 
-        logger.info(f"Konfigurasi dimuat — Admin: {self.ADMIN_IDS}, Channel: {self.REQUIRED_CHANNELS}")
+        self.GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
+
+        logger.info(f"Konfigurasi dimuat — Admin: {self.ADMIN_IDS}, Channel: {self.REQUIRED_CHANNELS}, Groq: {'✅' if self.GROQ_API_KEY else '❌ (tidak diset)'}")
