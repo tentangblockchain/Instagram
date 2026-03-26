@@ -107,8 +107,41 @@ DATABASE_PATH=database.db
 
 ### 3. Jalankan Bot
 
+#### Langsung (testing)
 ```bash
-python -m bot.main
+python3 -m bot.main
+```
+
+#### Via PM2 (produksi — recommended)
+
+**Install PM2 dulu jika belum:**
+```bash
+npm install -g pm2
+```
+
+**Start bot:**
+```bash
+bash start.sh
+```
+
+Script `start.sh` otomatis mengecek `.env`, dependencies, membuat folder `logs/`, lalu menjalankan bot via PM2.
+
+**Perintah PM2 sehari-hari:**
+```bash
+pm2 logs telegram-bot       # Log live
+pm2 status                  # Status bot
+pm2 restart telegram-bot    # Restart bot
+pm2 stop telegram-bot       # Stop bot
+pm2 monit                   # Monitor real-time (CPU & RAM)
+pm2 save                    # Simpan config (auto-start saat reboot)
+pm2 startup                 # Generate perintah auto-start OS
+```
+
+**Struktur log:**
+```
+logs/
+├── bot-out.log     # Output normal
+└── bot-error.log   # Error & traceback
 ```
 
 ---

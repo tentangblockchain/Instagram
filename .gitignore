@@ -104,6 +104,6 @@ dmypy.json
 # ============================================
 # - config.py (no secrets, loads from .env)
 # - ecosystem.config.js (PM2 config)
-# - start-pm2.sh (PM2 startup script)
+# - start.sh (PM2 startup script)
 # - requirements.txt (Python dependencies)
 # - README.md (documentation)
