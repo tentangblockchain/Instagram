@@ -22,12 +22,12 @@ args = "telegram-bot"
 name = "telegram-bot"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "python bot/main.py"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python -m bot.main"
 
 [deployment]
 deploymentTarget = "vm"
