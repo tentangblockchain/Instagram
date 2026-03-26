@@ -185,13 +185,13 @@ bash start.sh
 
 **Perintah PM2 sehari-hari:**
 ```bash
-pm2 logs telegram-bot       # Log live
-pm2 status                  # Status bot
-pm2 restart telegram-bot    # Restart bot
-pm2 stop telegram-bot       # Stop bot
-pm2 monit                   # Monitor real-time (CPU & RAM)
-pm2 save                    # Simpan config (auto-start saat reboot)
-pm2 startup                 # Generate perintah auto-start OS
+pm2 logs downloader-ig-vt       # Log live
+pm2 status                      # Status bot
+pm2 restart downloader-ig-vt    # Restart bot
+pm2 stop downloader-ig-vt       # Stop bot
+pm2 monit                       # Monitor real-time (CPU & RAM)
+pm2 save                        # Simpan config (auto-start saat reboot)
+pm2 startup                     # Generate perintah auto-start OS
 ```
 
 ---

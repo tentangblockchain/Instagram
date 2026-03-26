@@ -64,7 +64,7 @@ if ! pm2 list | grep -q "pm2-logrotate" 2>/dev/null; then
 fi
 
 # ── Start / Restart bot ─────────────────────────
-if pm2 list | grep -q "telegram-bot"; then
+if pm2 list | grep -q "downloader-ig-vt"; then
   echo "🔄 Merestart bot yang sudah berjalan..."
   pm2 restart ecosystem.config.js
 else
@@ -79,8 +79,8 @@ echo ""
 echo "✅ Bot berhasil dijalankan!"
 echo ""
 echo "📋 Perintah berguna:"
-echo "   pm2 logs telegram-bot        # Lihat log live"
+echo "   pm2 logs downloader-ig-vt     # Lihat log live"
 echo "   pm2 status                   # Status bot"
-echo "   pm2 restart telegram-bot     # Restart bot"
-echo "   pm2 stop telegram-bot        # Stop bot"
+echo "   pm2 restart downloader-ig-vt # Restart bot"
+echo "   pm2 stop downloader-ig-vt    # Stop bot"
 echo "   pm2 monit                    # Monitor real-time"
