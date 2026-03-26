@@ -1,357 +1,199 @@
-# 🤖 Telegram Bot Downloader TikTok & Instagram
+# 🤖 Bot Downloader TikTok & Instagram
 
-Bot Telegram untuk download konten TikTok dan Instagram dengan sistem VIP subscription menggunakan pembayaran Trakteer. Bot ini menggunakan bahasa Jawa (Javanese) untuk interaksi dengan user.
-
-**GitHub Repository:** [https://github.com/tentangblockchain/Instagram](https://github.com/tentangblockchain/Instagram)
+Bot Telegram untuk mengunduh konten **TikTok** dan **Instagram** lengkap dengan sistem **VIP subscription** dan pembayaran **QRIS otomatis via Saweria**.
 
 ---
 
 ## ✨ Fitur Utama
 
-### 📥 Download Content
-- ✅ **TikTok**: Video & Photo/Slideshow
-- ✅ **Instagram**: Post, Reel, Carousel/Album
-- ✅ **Auto Caption**: Otomatis kirim caption dari konten
-- ✅ **Fast Download**: Optimized untuk kecepatan maksimal
+### 📥 Download Konten
+| Platform | Format | Keterangan |
+|----------|--------|------------|
+| TikTok | Video, Foto/Slideshow | Support link pendek `vt.tiktok.com`, `vm.tiktok.com` |
+| Instagram | Post, Reels, Carousel | Carousel dikirim satu per satu dengan nomor urut |
+
+- Caption konten otomatis disertakan
+- File dikirim langsung ke chat
 
 ### 💎 Sistem VIP
-- **User Gratis**: 10 download/hari
-- **User VIP**: 100 download/hari
-- **Paket VIP**:
-  - 3 hari → Rp 5.000
-  - 7 hari → Rp 10.000 (Recommended)
-  - 15 hari → Rp 20.000
-  - 30 hari → Rp 35.000 (Best Value)
-  - 60 hari → Rp 60.000
-  - 90 hari → Rp 80.000 (Super Saver)
+| Tipe | Limit Download/Hari |
+|------|---------------------|
+| Gratis | 10 |
+| VIP | 100 |
 
-### 💳 Payment Integration
-- **Trakteer API**: Semi-automatic payment detection
-- **Admin Approval**: Manual verification untuk keamanan
-- **Auto VIP Activation**: Langsung aktif setelah approved
+**Paket VIP:**
+| Durasi | Harga |
+|--------|-------|
+| 3 Hari | Rp 5.000 |
+| 7 Hari | Rp 10.000 |
+| 15 Hari | Rp 20.000 |
+| 30 Hari | Rp 35.000 |
+| 60 Hari | Rp 60.000 |
+| 90 Hari | Rp 80.000 |
 
-### 🔒 Security Features
-- **Channel Membership Check**: Wajib join channel sebelum download
-- **Daily Limit System**: Mencegah abuse
-- **Database Tracking**: Semua aktivitas tercatat
-- **Admin Only Commands**: Command khusus admin
+### 💳 Pembayaran QRIS Otomatis (Saweria)
+- Bot generate QR Code QRIS langsung di chat
+- Support semua e-wallet & mobile banking (GoPay, OVO, Dana, BCA, BRI, dll.)
+- Bot polling otomatis setiap **7 detik**, maksimal **15 menit**
+- VIP **aktif sendiri** begitu pembayaran terdeteksi — tanpa perlu konfirmasi admin
+
+### 🔒 Keamanan
+- Wajib join channel sebelum bisa download (dapat dinonaktifkan)
+- Sistem limit harian mencegah penyalahgunaan
+- Semua aktivitas tercatat di database SQLite
 
 ---
 
-## 🚀 Quick Start
+## 🗂 Struktur Proyek
 
-### Prerequisites
+```
+bot/
+├── config.py          # Konfigurasi dari environment variables
+├── constants.py       # Semua teks pesan & paket VIP
+├── database.py        # SQLite: user, VIP, payment, download log
+├── main.py            # Entry point, handler, menu sistem
+├── payment/
+│   └── saweria.py     # Saweria API: buat donasi, generate QR, cek status
+└── downloaders/
+    ├── tiktok.py      # Download TikTok via yt-dlp
+    └── instagram.py   # Download Instagram via yt-dlp + gallery-dl
+```
+
+---
+
+## 🚀 Setup & Instalasi
+
+### Prasyarat
 - Python 3.11+
-- Telegram Bot Token (dari @BotFather)
-- Trakteer API Key
+- Akun [Saweria](https://saweria.co) (untuk pembayaran)
+- Telegram Bot Token dari [@BotFather](https://t.me/BotFather)
 
-### Installation
+### 1. Clone & Install
 
 ```bash
-# Clone repository
 git clone https://github.com/tentangblockchain/Instagram.git
 cd Instagram
-```
-```bash
-# Install dependencies
 pip install -r requirements.txt
 ```
-# Setup environment variables
+
+### 2. Konfigurasi Environment
+
+Buat file `.env` dari contoh:
+
+```bash
 cp .env.example .env
-# Edit .env dengan credentials kamu
 ```
 
-### Configuration (.env)
+Isi variabel berikut:
 
 ```env
-BOT_TOKEN=your_telegram_bot_token
-ADMIN_IDS=your_admin_id_1,your_admin_id_2
-REQUIRED_CHANNEL=@your_channel
-TRAKTEER_API_KEY=your_trakteer_api_key
-TRAKTEER_USERNAME=your_trakteer_username
+# Wajib
+BOT_TOKEN=token_dari_botfather
+ADMIN_IDS=123456789,987654321
+
+# Saweria (untuk pembayaran QRIS)
+SAWERIA_USERNAME=username_saweria_kamu
+SAWERIA_USER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+
+# Opsional
+REQUIRED_CHANNEL=@channelmu
 FREE_DAILY_LIMIT=10
 VIP_DAILY_LIMIT=100
+DATABASE_PATH=database.db
 ```
 
-### Running the Bot
+> **Cara dapat `SAWERIA_USER_ID`:**
+> Buka `saweria.co/usernamemu` → F12 → tab Network → cari request ke endpoint `snap` → salin nilai `user_id` (format UUID).
 
-#### Option 1: Direct Run
+### 3. Jalankan Bot
+
 ```bash
-python main.py
-```
-
-#### Option 2: PM2 (Recommended for Production)
-```bash
-# Install PM2 (jika belum)
-npm install -g pm2
-```
-```bash
-# Start bot dengan PM2
-bash start-pm2.sh
-```
-```bash
-# Atau manual
-pm2 start ecosystem.config.js
-```
-
-#### Option 3: Replit Deployment
-1. Import project ke Replit
-2. Configure secrets di Replit
-3. Click "Deploy" → pilih "Reserved VM"
-4. Bot akan running 24/7
-
----
-
-## 📱 Command List
-
-### User Commands
-- `/start` - Mulai bot dan register
-- `/vip` - Lihat paket VIP dan beli
-- `/status` - Cek status VIP kamu
-- `/help` - Panduan lengkap
-
-### Admin Commands
-- `!cek` atau `!cp` - Sync pembayaran dari Trakteer
-- `!pend` atau `!pa` - Lihat daftar payment pending
-- `!listvip` - Lihat semua VIP user aktif
-- `!delvip <user_id>` - Hapus VIP user
-- `!debug` - Debug information
-
-### Download Content
-Kirim link langsung ke bot:
-- TikTok: `https://vt.tiktok.com/...` atau `https://www.tiktok.com/...`
-- Instagram: `https://www.instagram.com/p/...` atau `https://www.instagram.com/reel/...`
-
----
-
-## 🔧 PM2 Management
-
-### Start Bot
-```bash
-pm2 start ecosystem.config.js
-```
-
-### Monitor Bot
-```bash
-pm2 status              # Status bot
-pm2 logs                # Live logs
-pm2 logs --lines 100    # Last 100 lines
-pm2 monit               # Real-time monitoring
-```
-
-### Control Bot
-```bash
-pm2 restart telegram-bot    # Restart bot
-pm2 stop telegram-bot       # Stop bot
-pm2 delete telegram-bot     # Remove from PM2
-pm2 flush                   # Clear logs
-```
-
-### Auto-start on Server Reboot
-```bash
-pm2 startup             # Generate startup script
-pm2 save                # Save current process list
+python -m bot.main
 ```
 
 ---
 
-## 🏗️ Architecture
+## 📱 Cara Pakai (User)
 
-### Tech Stack
-- **Language**: Python 3.11
-- **Framework**: python-telegram-bot 20.7
-- **Database**: SQLite
-- **Downloader**: yt-dlp + custom scraper
-- **Scheduler**: APScheduler
+### Download Konten
+Cukup kirim link langsung ke chat bot — tidak perlu command apapun.
 
-### Project Structure
 ```
-├── main.py                 # Main bot application
-├── config.py               # Configuration loader
-├── database.py             # Database handler
-├── tiktok_downloader.py    # TikTok download engine (OPTIMIZED)
-├── instagram_downloader.py # Instagram download engine (OPTIMIZED)
-├── trakteer_api.py         # Trakteer payment integration
-├── requirements.txt        # Python dependencies
-├── ecosystem.config.js     # PM2 configuration
-├── start-pm2.sh           # PM2 startup script
-├── .env                    # Environment variables
-└── database.db            # SQLite database (auto-created)
+https://vt.tiktok.com/ZSxxxx
+https://www.instagram.com/p/xxxx/
 ```
 
-### Database Schema
+### Menu Utama (`/start`)
 
-#### Users Table
+```
+🏠 Menu Utama
+├── 💎 Upgrade VIP     → Pilih paket → Scan QR → VIP aktif otomatis
+├── 👑 Status VIP      → Cek status & sisa download hari ini
+└── 📥 Cara Download   → Panduan singkat
+```
+
+Untuk admin, muncul tambahan:
+```
+└── 🔐 Admin Panel
+    ├── 👥 List VIP    → Daftar semua VIP aktif
+    └── 📊 Statistik   → Statistik bot
+```
+
+---
+
+## ⌨️ Command
+
+| Command | Deskripsi | Akses |
+|---------|-----------|-------|
+| `/start` | Buka menu utama | Semua user |
+| `/help` | Panduan penggunaan | Semua user |
+| `!delvip <user_id>` | Hapus VIP user tertentu | Admin only |
+
+> Semua fitur lain (VIP, status, statistik, list VIP) tersedia melalui tombol menu — tidak perlu command.
+
+---
+
+## 🔄 Alur Pembayaran VIP
+
+```
+User klik "Upgrade VIP"
+    → Pilih paket (misal: 7 Hari - Rp 10.000)
+        → Bot buat donasi di Saweria
+            → Bot kirim QR Code QRIS ke chat
+                → User scan & bayar (maks. 15 menit)
+                    → Bot polling status setiap 7 detik
+                        → Pembayaran terdeteksi
+                            → VIP aktif otomatis ✅
+```
+
+---
+
+## 🛠 Dependencies Utama
+
+| Package | Fungsi |
+|---------|--------|
+| `python-telegram-bot==21.5` | Framework bot Telegram |
+| `yt-dlp` | Download TikTok & Instagram |
+| `gallery-dl` | Fallback download Instagram carousel |
+| `qrcode` + `Pillow` | Generate gambar QR Code |
+| `python-dotenv` | Baca file `.env` |
+| `APScheduler` | Cleanup VIP expired terjadwal |
+
+> Saweria API menggunakan `curl` via subprocess untuk bypass Cloudflare TLS fingerprinting (Python HTTP client diblokir Saweria).
+
+---
+
+## 🗄 Database Schema
+
 ```sql
-- user_id (PRIMARY KEY)
-- username
-- created_at
-- is_vip
-- vip_expires_at
+users          -- user_id, username, registered_at
+vip_users      -- user_id, vip_expires_at, is_active
+payments       -- id, user_id, days, amount, status, donation_id, created_at
+download_logs  -- user_id, downloaded_at
 ```
-
-#### Downloads Table
-```sql
-- id (AUTO INCREMENT)
-- user_id (FOREIGN KEY)
-- download_date
-- created_at
-```
-
-#### Payments Table
-```sql
-- id (AUTO INCREMENT)
-- user_id (FOREIGN KEY)
-- days
-- amount
-- status (pending/approved/rejected)
-- trakteer_id
-- created_at
-- updated_at
-```
-
----
-
-## ⚡ Performance Optimizations
-
-Bot ini sudah dioptimasi untuk kecepatan maksimal:
-
-### 🚀 Fast-Fail Strategy
-- Deteksi error rate-limit/fatal error secara cepat
-- Exit immediate tanpa mencoba format lain
-- **Hasil**: 15-20 detik lebih cepat saat error
-
-### ⏱️ Timeout Optimization
-- Socket timeout: 10 detik
-- Connection timeout: 10 detik
-- Max retries: 2x
-- **Hasil**: Tidak hang di network issues
-
-### 🎯 Single Format Attempt
-- Langsung gunakan format 'best'
-- Tidak mencoba 5 format berbeda
-- **Hasil**: 3x lebih cepat download
-
-### 📡 Concurrent Downloads
-- Parallel fragment downloads
-- Optimized chunk size (10MB)
-- **Hasil**: Download lebih smooth
-
----
-
-## 🔐 Security Best Practices
-
-1. **Environment Variables**: Semua secret disimpan di `.env`
-2. **No Hardcoded Credentials**: Tidak ada credentials di code
-3. **Admin Verification**: Payment butuh admin approval
-4. **Database Protection**: SQLite dengan proper isolation
-5. **Input Validation**: Semua user input divalidasi
-
----
-
-## 📊 Monitoring & Logs
-
-### Log Files (PM2)
-```
-logs/
-├── pm2-error.log      # Error logs
-├── pm2-out.log        # Output logs
-└── pm2-combined.log   # Combined logs
-```
-
-### Database Statistics
-```python
-# Cek statistics via code
-from database import Database
-db = Database()
-stats = db.get_user_stats()
-print(stats)
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Bot tidak start
-```bash
-# Check logs
-pm2 logs telegram-bot
-
-# Restart bot
-pm2 restart telegram-bot
-```
-
-### Instagram rate-limit
-- **Penyebab**: Terlalu banyak request ke Instagram
-- **Solusi**: Tunggu 30-60 menit, Instagram akan reset limit
-- **Optimasi**: Bot sudah fast-fail untuk tidak waste waktu
-
-### TikTok link expired
-- **Penyebab**: Short link TikTok expire/video dihapus
-- **Solusi**: Minta user kirim link baru
-- **Deteksi**: Bot auto-detect dan kasih error jelas
-
-### Database locked
-```bash
-# Stop bot
-pm2 stop telegram-bot
-
-# Backup database
-cp database.db database.backup.db
-
-# Restart bot
-pm2 start telegram-bot
-```
-
----
-
-## 📈 Future Improvements
-
-- [ ] Twitter/X download support
-- [ ] YouTube Shorts download
-- [ ] Auto-renewal VIP subscription
-- [ ] Multiple payment gateway (OVO, Dana, GoPay)
-- [ ] Referral system untuk bonus VIP
-- [ ] Download queue untuk batch processing
-- [ ] CDN integration untuk faster delivery
-
----
-
-## 🤝 Contributing
-
-Contributions are welcome! Please:
-
-1. Fork repository
-2. Create feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open Pull Request
 
 ---
 
 ## 📄 License
 
-This project is for educational purposes. Respect content creators and platform terms of service.
-
----
-
-## 💬 Support
-
-- **GitHub Issues**: [https://github.com/tentangblockchain/Instagram/issues](https://github.com/tentangblockchain/Instagram/issues)
-- **Telegram**: Contact admin via bot
-
----
-
-## 🙏 Credits
-
-- **yt-dlp**: For powerful media downloading
-- **python-telegram-bot**: For Telegram bot framework
-- **Trakteer**: For payment gateway
-- **BeautifulSoup**: For HTML parsing
-- **APScheduler**: For task scheduling
-
----
-
-**Made with ❤️ for Indonesian Telegram users**
-
-**Repository**: [https://github.com/tentangblockchain/Instagram](https://github.com/tentangblockchain/Instagram)
+Proyek ini untuk keperluan edukasi. Hormati hak cipta kreator konten dan syarat layanan platform.

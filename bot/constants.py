@@ -1,10 +1,10 @@
 VIP_PACKAGES = {
-    3:  {"price": 5000,  "name": "3 Hari"},
-    7:  {"price": 10000, "name": "7 Hari"},
-    15: {"price": 20000, "name": "15 Hari"},
-    30: {"price": 35000, "name": "30 Hari"},
-    60: {"price": 60000, "name": "60 Hari"},
-    90: {"price": 80000, "name": "90 Hari"},
+    3:  {"price": 1000,  "name": "3 Hari"},
+    7:  {"price": 50000, "name": "7 Hari"},
+    15: {"price": 10000, "name": "15 Hari"},
+    30: {"price": 15000, "name": "30 Hari"},
+    60: {"price": 20000, "name": "60 Hari"},
+    90: {"price": 25000, "name": "90 Hari"},
 }
 
 MESSAGES = {
