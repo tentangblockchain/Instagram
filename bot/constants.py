@@ -132,16 +132,15 @@ MESSAGES = {
 
     "free_vip_join_channels": (
         "🎁 <b>VIP Gratis 1 Hari</b>\n\n"
-        "<blockquote>Join semua channel sponsor berikut dulu ya kak:\n\n"
-        "{channels}</blockquote>\n\n"
-        "Setelah join semua, tekan tombol <b>✅ Sudah Join</b> di bawah! 💕"
+        "<blockquote>📢 Klik semua tombol channel di bawah untuk join, "
+        "lalu tekan <b>🎁 Sudah Join — Klaim VIP Gratis!</b> 💕\n\n"
+        "⚠️ Harus join <b>semua {count} channel</b> ya kak!</blockquote>"
     ),
 
     "free_vip_not_member": (
         "❌ <b>Belum Join Semua Channel</b>\n\n"
-        "<blockquote>Kamu belum join semua channel berikut:\n\n"
-        "{channels}</blockquote>\n\n"
-        "<i>Join dulu ya kak, baru klaim VIP gratis! 🙏</i>"
+        "<blockquote>Bot mendeteksi kamu belum join semua channel sponsor.\n\n"
+        "Klik tombol-tombol di bawah, join semua, lalu tekan klaim lagi! 🙏</blockquote>"
     ),
 
     "free_vip_already_active": (

@@ -47,11 +47,12 @@ def _kb_main(is_admin: bool = False) -> InlineKeyboardMarkup:
 
 
 def _kb_channels(channels: list) -> InlineKeyboardMarkup:
-    rows = []
-    for ch in channels:
-        if ch.startswith("@"):
-            rows.append([InlineKeyboardButton(f"📢 Join {ch}", url=f"https://t.me/{ch[1:]}")])
-    rows.append([InlineKeyboardButton("✅ Sudah Join — Klaim VIP Gratis!", callback_data="free_vip_claim")])
+    buttons = [
+        InlineKeyboardButton(f"✅ {ch}", url=f"https://t.me/{ch[1:]}")
+        for ch in channels if ch.startswith("@")
+    ]
+    rows = [buttons[i:i+3] for i in range(0, len(buttons), 3)]
+    rows.append([InlineKeyboardButton("🎁 Sudah Join — Klaim VIP Gratis!", callback_data="free_vip_claim")])
     rows.append([InlineKeyboardButton("🔙 Kembali", callback_data="menu_main")])
     return InlineKeyboardMarkup(rows)
 
@@ -360,9 +361,8 @@ class DownloaderBot:
             )
             return
 
-        channels_text = "\n".join(f"• {ch}" for ch in self.config.REQUIRED_CHANNELS)
         await query.edit_message_text(
-            MESSAGES["free_vip_join_channels"].format(channels=channels_text),
+            MESSAGES["free_vip_join_channels"].format(count=len(self.config.REQUIRED_CHANNELS)),
             reply_markup=_kb_channels(self.config.REQUIRED_CHANNELS),
             parse_mode="HTML",
         )
@@ -382,9 +382,8 @@ class DownloaderBot:
             return
 
         if self.config.REQUIRED_CHANNELS and not await self._check_membership(user_id, context.bot):
-            channels_text = "\n".join(f"• {ch}" for ch in self.config.REQUIRED_CHANNELS)
             await query.edit_message_text(
-                MESSAGES["free_vip_not_member"].format(channels=channels_text),
+                MESSAGES["free_vip_not_member"],
                 reply_markup=_kb_channels(self.config.REQUIRED_CHANNELS),
                 parse_mode="HTML",
             )
