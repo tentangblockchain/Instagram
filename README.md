@@ -73,7 +73,7 @@ bot/
 ```bash
 git clone https://github.com/tentangblockchain/Instagram.git
 cd Instagram
-pip install -r requirements.txt
+pip install -r requirements.txt --break-system-packages
 ```
 
 ### 2. Konfigurasi Environment
