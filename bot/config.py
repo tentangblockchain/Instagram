@@ -30,5 +30,6 @@ class Config:
         self.LOG_LEVEL     = os.getenv("LOG_LEVEL", "INFO")
 
         self.GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
+        self.INSTAGRAM_COOKIES = os.getenv("INSTAGRAM_COOKIES", "")
 
-        logger.info(f"Konfigurasi dimuat — Admin: {self.ADMIN_IDS}, Channel: {self.REQUIRED_CHANNELS}, Groq: {'✅' if self.GROQ_API_KEY else '❌ (tidak diset)'}")
+        logger.info(f"Konfigurasi dimuat — Admin: {self.ADMIN_IDS}, Channel: {self.REQUIRED_CHANNELS}, Groq: {'✅' if self.GROQ_API_KEY else '❌'}")

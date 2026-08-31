@@ -9,8 +9,9 @@ from datetime import datetime, timedelta
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.error import NetworkError, TimedOut
 from telegram.ext import (
-    Application, CallbackQueryHandler, CommandHandler,
-    ContextTypes, MessageHandler, filters,
+    Application, CallbackQueryHandler, ChosenInlineResultHandler,
+    CommandHandler, ContextTypes, InlineQueryHandler,
+    MessageHandler, filters,
 )
 
 from bot.ai_monitor import (
@@ -22,14 +23,34 @@ from bot.config import Config
 from bot.constants import MESSAGES, VIP_PACKAGES
 from bot.database import Database
 from bot.downloaders import InstagramDownloader, TikTokDownloader
+from bot.downloaders.fastdl import FastDLDownloader
+from bot.inline import inline_query_handler, chosen_inline_handler
 from bot.payment import SaweriaAPI
 
-logging.basicConfig(
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    level=logging.INFO,
-    handlers=[logging.StreamHandler()],
-)
+import sys
+
+class _InfoFilter(logging.Filter):
+    """Allow only INFO and DEBUG to pass (for stdout handler)."""
+    def filter(self, record):
+        return record.levelno <= logging.INFO
+
+_fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+
+_stdout_handler = logging.StreamHandler(sys.stdout)
+_stdout_handler.setLevel(logging.DEBUG)
+_stdout_handler.addFilter(_InfoFilter())
+_stdout_handler.setFormatter(logging.Formatter(_fmt))
+
+_stderr_handler = logging.StreamHandler(sys.stderr)
+_stderr_handler.setLevel(logging.WARNING)
+_stderr_handler.setFormatter(logging.Formatter(_fmt))
+
+logging.basicConfig(level=logging.INFO, handlers=[_stdout_handler, _stderr_handler])
 logger = logging.getLogger(__name__)
+
+# Suppress noisy HTTP request logs from httpx (Telegram polling)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 TIKTOK_RE    = re.compile(r"https?://(?:www\.)?(?:vm\.|vt\.)?tiktok\.com/\S+")
 INSTAGRAM_RE = re.compile(r"https?://(?:www\.)?instagram\.com/\S+")
@@ -83,6 +104,13 @@ def _kb_admin() -> InlineKeyboardMarkup:
             InlineKeyboardButton("👥 List VIP",        callback_data="admin_listvip"),
             InlineKeyboardButton("📊 Statistik",        callback_data="admin_stats"),
         ],
+        [
+            InlineKeyboardButton("➕ Add VIP",         callback_data="admin_add_vip"),
+            InlineKeyboardButton("➖ Hapus VIP",        callback_data="admin_delvip"),
+        ],
+        [
+            InlineKeyboardButton("🍪 Set IG Cookies",  callback_data="admin_set_ig_cookies"),
+        ],
         [InlineKeyboardButton("🔄 Riwayat Rollback",   callback_data="admin_rollback_list")],
         [InlineKeyboardButton("🔙 Kembali",             callback_data="menu_main")],
     ])
@@ -96,13 +124,18 @@ class DownloaderBot:
         self.config    = Config()
         self.db        = Database(self.config.DATABASE_PATH)
         self.tiktok    = TikTokDownloader()
-        self.instagram = InstagramDownloader()
+        self.instagram = InstagramDownloader(
+            cookies_path=self.config.INSTAGRAM_COOKIES
+        )
         self.saweria   = SaweriaAPI(
             username=self.config.SAWERIA_USERNAME,
             user_id=self.config.SAWERIA_USER_ID,
         )
+        self.fastdl    = FastDLDownloader()
         self._polling_tasks: dict[str, asyncio.Task] = {}
         self.monitor: GroqMonitor | None = None
+        self._admin_state: dict[int, dict] = {}
+        self._ig_cookies: dict[str, str] = {}
 
     # ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -176,12 +209,13 @@ class DownloaderBot:
     # ── Text handler (URL download + !delvip admin) ──────────────────────────────
 
     async def handle_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        text    = update.message.text.strip()
+        if not update.message or not update.message.text:
+            return
         user_id = update.effective_user.id
 
-        # Satu-satunya teks admin yang tetap dipertahankan karena butuh argumen
-        if text.startswith("!delvip ") and user_id in self.config.ADMIN_IDS:
-            return await self._admin_del_vip(update, text)
+        # Admin multi-step input (add/del vip)
+        if await self._handle_admin_state(update, context):
+            return
 
         # Download URL
         await self._handle_url(update, context)
@@ -189,6 +223,8 @@ class DownloaderBot:
     # ── URL Download ─────────────────────────────────────────────────────────────
 
     async def _handle_url(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not update.message or not update.message.text:
+            return
         text    = update.message.text
         user_id = update.effective_user.id
 
@@ -238,6 +274,26 @@ class DownloaderBot:
                 parse_mode="HTML",
             )
 
+    def _get_video_size(self, file_path: str) -> tuple:
+        """Get video width/height via ffprobe for correct aspect ratio on iPhone"""
+        try:
+            import subprocess, json
+            result = subprocess.run(
+                ['ffprobe', '-v', 'quiet', '-print_format', 'json',
+                 '-select_streams', 'v:0', '-show_streams', file_path],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                stream = data.get('streams', [{}])[0]
+                w = stream.get('width')
+                h = stream.get('height')
+                if w and h:
+                    return (int(w), int(h))
+        except Exception as e:
+            logger.debug(f"get_video_size error: {e}")
+        return (0, 0)
+
     async def _send_tiktok(self, update, context, url, user_id, proc_msg):
         result = await self.tiktok.download(url)
         if not result["success"]:
@@ -255,9 +311,11 @@ class DownloaderBot:
             await context.bot.send_photo(chat_id=chat_id, photo=result["file_path"],
                                          caption=caption, parse_mode="HTML")
         else:
+            w, h = self._get_video_size(result["file_path"])
             with open(result["file_path"], "rb") as f:
                 await context.bot.send_video(chat_id=chat_id, video=f,
-                                             caption=caption, parse_mode="HTML")
+                                             caption=caption, parse_mode="HTML",
+                                             width=w, height=h)
 
         _safe_delete(result["file_path"])
         await proc_msg.delete()
@@ -265,30 +323,48 @@ class DownloaderBot:
     async def _send_instagram(self, update, context, url, user_id, proc_msg):
         result = await self.instagram.download(url)
         if not result["success"]:
-            await proc_msg.edit_text(
-                MESSAGES["download_error"].format(error=result["error"]),
-                parse_mode="HTML",
-            )
-            return
+            error_text = result["error"]
+            restricted_keywords = ["restricted", "not available", "audiences", "content isn", "sensitive"]
+            if any(kw in error_text.lower() for kw in restricted_keywords):
+                await proc_msg.edit_text(
+                    "Mencoba metode alternatif (fastdl.app)…",
+                    parse_mode="HTML",
+                )
+                result = await self.fastdl.download(url)
+                if not result["success"]:
+                    await proc_msg.edit_text(
+                        MESSAGES["download_error"].format(error=result["error"]),
+                        parse_mode="HTML",
+                    )
+                    context.application.create_task(self.fastdl.cleanup())
+                    return
+            else:
+                await proc_msg.edit_text(
+                    MESSAGES["download_error"].format(error=error_text),
+                    parse_mode="HTML",
+                )
+                return
 
         chat_id = update.effective_chat.id
 
         if result["type"] == "carousel":
+            self.db.record_download(user_id)
             await proc_msg.edit_text(
                 MESSAGES["carousel_success"].format(count=result["count"]),
                 parse_mode="HTML",
             )
             base_caption = self._clean_caption(result.get("caption", ""))[:1024]
             for i, path in enumerate(result["files"]):
-                self.db.record_download(user_id)
                 caption = f"<b>Part {i + 1}/{result['count']}</b>"
                 if base_caption and i == 0:
                     caption += f"\n\n{base_caption}"
                 try:
                     if path.endswith((".mp4", ".mov", ".avi")):
+                        w, h = self._get_video_size(path)
                         with open(path, "rb") as f:
                             await context.bot.send_video(chat_id=chat_id, video=f,
-                                                         caption=caption, parse_mode="HTML")
+                                                         caption=caption, parse_mode="HTML",
+                                                         width=w, height=h)
                     else:
                         await context.bot.send_photo(chat_id=chat_id, photo=path,
                                                      caption=caption, parse_mode="HTML")
@@ -302,9 +378,11 @@ class DownloaderBot:
                 await context.bot.send_photo(chat_id=chat_id, photo=result["file_path"],
                                              caption=caption, parse_mode="HTML")
             else:
+                w, h = self._get_video_size(result["file_path"])
                 with open(result["file_path"], "rb") as f:
                     await context.bot.send_video(chat_id=chat_id, video=f,
-                                                 caption=caption, parse_mode="HTML")
+                                                 caption=caption, parse_mode="HTML",
+                                                 width=w, height=h)
             _safe_delete(result["file_path"])
             await proc_msg.delete()
 
@@ -391,11 +469,14 @@ class DownloaderBot:
             return
 
         if self.config.REQUIRED_CHANNELS and not await self._check_membership(user_id, context.bot):
-            await query.edit_message_text(
-                MESSAGES["free_vip_not_member"],
-                reply_markup=_kb_channels(self.config.REQUIRED_CHANNELS),
-                parse_mode="HTML",
-            )
+            try:
+                await query.edit_message_text(
+                    MESSAGES["free_vip_not_member"],
+                    reply_markup=_kb_channels(self.config.REQUIRED_CHANNELS),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
             return
 
         expires_at = datetime.now() + timedelta(days=1)
@@ -473,6 +554,167 @@ class DownloaderBot:
             reply_markup=_kb_admin(),
             parse_mode="HTML",
         )
+
+    async def cb_admin_add_vip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer(MESSAGES["not_admin"], show_alert=True)
+            return
+
+        self._admin_state[user_id] = {"step": "add_vip_user_id"}
+        await query.edit_message_text(
+            "➕ <b>Tambah VIP Manual</b>\n\n"
+            "Kirimkan <code>user_id</code> Telegram yang mau di-VIP-kan:\n"
+            "<i>Balas /cancel untuk batal.</i>",
+            parse_mode="HTML",
+        )
+
+    async def cb_admin_delvip(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer(MESSAGES["not_admin"], show_alert=True)
+            return
+
+        self._admin_state[user_id] = {"step": "del_vip_user_id"}
+        await query.edit_message_text(
+            "➖ <b>Hapus VIP Manual</b>\n\n"
+            "Kirimkan <code>user_id</code> Telegram yang mau dihapus VIP-nya:\n"
+            "<i>Balas /cancel untuk batal.</i>",
+            parse_mode="HTML",
+        )
+
+    async def cb_admin_set_ig_cookies(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer(MESSAGES["not_admin"], show_alert=True)
+            return
+
+        self._admin_state[user_id] = {"step": "set_ig_cookies"}
+        await query.edit_message_text(
+            "🍪 <b>Set Instagram Cookies</b>\n\n"
+            "Cara export cookies dari Chrome:\n"
+            "1. Install ekstensi <b>Get cookies.txt</b> di Chrome\n"
+            "2. Login ke instagram.com\n"
+            "3. Klik ikon ekstensi → Export cookies\n"
+            "4. Copy paste <b>semua isi file</b> ke chat ini\n\n"
+            "<i>Balas /cancel untuk batal.</i>",
+            parse_mode="HTML",
+        )
+
+    async def _handle_admin_state(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Handle multi-step admin input. Returns True if handled."""
+        user_id = update.effective_user.id
+        if user_id not in self.config.ADMIN_IDS or user_id not in self._admin_state:
+            return False
+
+        if not update.message or not update.message.text:
+            return False
+
+        text = update.message.text.strip()
+        state = self._admin_state[user_id]
+
+        # Cancel
+        if text.lower() in ("/cancel", "cancel", "batal"):
+            del self._admin_state[user_id]
+            await update.message.reply_text("❌ Dibatalkan.", reply_markup=_kb_admin())
+            return True
+
+        step = state["step"]
+
+        if step == "add_vip_user_id":
+            try:
+                target_id = int(text)
+            except ValueError:
+                await update.message.reply_text("❌ User ID harus angka. Coba lagi atau /cancel.")
+                return True
+            state["target_id"] = target_id
+            state["step"] = "add_vip_days"
+            await update.message.reply_text(
+                f"✅ Target: <code>{target_id}</code>\n\n"
+                "Berapa <b>hari</b> VIP mau ditambahkan?\n"
+                "<i>Balas /cancel untuk batal.</i>",
+                parse_mode="HTML",
+            )
+            return True
+
+        elif step == "add_vip_days":
+            try:
+                days = int(text)
+                if days <= 0:
+                    raise ValueError
+            except ValueError:
+                await update.message.reply_text("❌ Jumlah hari harus angka positif. Coba lagi atau /cancel.")
+                return True
+
+            target_id = state["target_id"]
+            expires_at = datetime.now() + timedelta(days=days)
+            self.db.activate_vip(target_id, expires_at)
+            del self._admin_state[user_id]
+
+            await update.message.reply_text(
+                f"✅ <b>VIP ditambahkan!</b>\n\n"
+                f"👤 User: <code>{target_id}</code>\n"
+                f"⏰ Durasi: {days} hari\n"
+                f"📅 Sampai: {expires_at.strftime('%d %B %Y %H:%M')}",
+                reply_markup=_kb_admin(),
+                parse_mode="HTML",
+            )
+            logger.info(f"Admin {user_id} menambahkan VIP user {target_id} selama {days} hari")
+            return True
+
+        elif step == "del_vip_user_id":
+            try:
+                target_id = int(text)
+            except ValueError:
+                await update.message.reply_text("❌ User ID harus angka. Coba lagi atau /cancel.")
+                return True
+
+            vip = self.db.get_vip_status(target_id)
+            if not vip or not vip.get("is_active"):
+                del self._admin_state[user_id]
+                await update.message.reply_text(
+                    f"❌ User <code>{target_id}</code> tidak punya VIP aktif.",
+                    reply_markup=_kb_admin(),
+                    parse_mode="HTML",
+                )
+                return True
+
+            self.db.remove_vip(target_id)
+            del self._admin_state[user_id]
+            await update.message.reply_text(
+                f"✅ <b>VIP dihapus!</b>\n\n"
+                f"👤 User: <code>{target_id}</code>",
+                reply_markup=_kb_admin(),
+                parse_mode="HTML",
+            )
+            logger.info(f"Admin {user_id} menghapus VIP user {target_id}")
+            return True
+
+        elif step == "set_ig_cookies":
+            cookies_file = os.path.join(os.path.dirname(self.config.DATABASE_PATH) or '.', 'instagram_cookies.txt')
+            try:
+                with open(cookies_file, 'w') as f:
+                    f.write(text)
+                self.instagram = InstagramDownloader(cookies_path=cookies_file)
+                del self._admin_state[user_id]
+                await update.message.reply_text(
+                    "✅ <b>Instagram Cookies berhasil disimpan!</b>\n\n"
+                    "Sekarang bot bisa download konten yang dibatasi Instagram.",
+                    reply_markup=_kb_admin(),
+                    parse_mode="HTML",
+                )
+                logger.info(f"Admin {user_id} menyimpan Instagram cookies")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Gagal simpan cookies: {e}", parse_mode="HTML")
+            return True
+
+        return False
 
     # ── VIP purchase callback ────────────────────────────────────────────────────
 
@@ -804,6 +1046,23 @@ class DownloaderBot:
     async def _job_cleanup_vip(self, context: ContextTypes.DEFAULT_TYPE):
         self.db.cleanup_expired_vip()
 
+    async def _job_cleanup_temp_files(self, context: ContextTypes.DEFAULT_TYPE):
+        """Bersihkan file temp download yang sudah >1 jam."""
+        import glob
+        cleaned = 0
+        for pattern in ["/tmp/jawanese_bot_*/*", "/tmp/qr_*.png"]:
+            for fpath in glob.glob(pattern):
+                try:
+                    if os.path.isfile(fpath):
+                        age = time.time() - os.path.getctime(fpath)
+                        if age > 3600:
+                            os.remove(fpath)
+                            cleaned += 1
+                except Exception:
+                    pass
+        if cleaned:
+            logger.info(f"Cleanup temp files: {cleaned} file dihapus")
+
     # ── Run ──────────────────────────────────────────────────────────────────────
 
     def run(self):
@@ -829,6 +1088,12 @@ class DownloaderBot:
         else:
             logger.warning("⚠️ GROQ_API_KEY tidak diset — AI Monitor tidak aktif")
 
+        # Share config with inline handler via bot_data
+        app.bot_data["required_channels"] = self.config.REQUIRED_CHANNELS
+        app.bot_data["admin_ids"] = self.config.ADMIN_IDS
+        app.bot_data["db"] = self.db
+        app.bot_data["instagram_cookies"] = self.config.INSTAGRAM_COOKIES
+
         app.add_error_handler(self.error_handler)
 
         # Commands
@@ -837,6 +1102,10 @@ class DownloaderBot:
 
         # Text (URL download + !delvip)
         app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text))
+
+        # Inline mode
+        app.add_handler(InlineQueryHandler(inline_query_handler))
+        app.add_handler(ChosenInlineResultHandler(chosen_inline_handler))
 
         # Menu callbacks
         app.add_handler(CallbackQueryHandler(self.cb_menu_main,      pattern=r"^menu_main$"))
@@ -848,6 +1117,9 @@ class DownloaderBot:
         app.add_handler(CallbackQueryHandler(self.cb_menu_admin,     pattern=r"^menu_admin$"))
         app.add_handler(CallbackQueryHandler(self.cb_admin_listvip,  pattern=r"^admin_listvip$"))
         app.add_handler(CallbackQueryHandler(self.cb_admin_stats,    pattern=r"^admin_stats$"))
+        app.add_handler(CallbackQueryHandler(self.cb_admin_add_vip,  pattern=r"^admin_add_vip$"))
+        app.add_handler(CallbackQueryHandler(self.cb_admin_delvip,   pattern=r"^admin_delvip$"))
+        app.add_handler(CallbackQueryHandler(self.cb_admin_set_ig_cookies, pattern=r"^admin_set_ig_cookies$"))
 
         # VIP purchase
         app.add_handler(CallbackQueryHandler(self.cb_vip_select,    pattern=r"^vip_\d+$"))
@@ -860,6 +1132,7 @@ class DownloaderBot:
 
         if app.job_queue:
             app.job_queue.run_repeating(self._job_cleanup_vip, interval=3600)
+            app.job_queue.run_repeating(self._job_cleanup_temp_files, interval=3600)
 
         logger.info("🚀 Bot siap melayani!")
         app.run_polling(allowed_updates=Update.ALL_TYPES)

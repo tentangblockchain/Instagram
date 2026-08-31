@@ -72,12 +72,10 @@ class Database:
     def register_user(self, user_id: int, username: str) -> None:
         with self._conn() as conn:
             conn.execute("""
-                INSERT OR REPLACE INTO users (user_id, username, created_at)
-                VALUES (?, ?, COALESCE(
-                    (SELECT created_at FROM users WHERE user_id = ?),
-                    CURRENT_TIMESTAMP
-                ))
-            """, (user_id, username, user_id))
+                INSERT INTO users (user_id, username, created_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(user_id) DO UPDATE SET username = excluded.username
+            """, (user_id, username))
 
     def is_user_vip(self, user_id: int) -> bool:
         with self._conn() as conn:

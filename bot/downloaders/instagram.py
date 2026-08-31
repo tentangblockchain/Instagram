@@ -19,15 +19,16 @@ INSTAGRAM_URL_PATTERN = re.compile(
 )
 
 class InstagramDownloader:
-    def __init__(self):
-        # create and reuse a single subdirectory under the system temp folder
+    def __init__(self, cookies_path: str = ""):
         self.download_dir = os.path.join(tempfile.gettempdir(), "jawanese_bot_instagram")
         os.makedirs(self.download_dir, exist_ok=True)
+        self.cookies_path = cookies_path if cookies_path and os.path.exists(cookies_path) else ""
 
         # OPTIMIZED yt-dlp configuration
         self.ydl_opts = {
             'outtmpl': os.path.join(self.download_dir, '%(id)s.%(ext)s'),
-            'format': 'best',
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best',
+            'merge_output_format': 'mp4',
             'quiet': True,
             'no_warnings': True,
             'extractaudio': False,
@@ -36,7 +37,38 @@ class InstagramDownloader:
             'fragment_retries': 2,
             'http_chunk_size': 10485760,
             'concurrent_fragment_downloads': 3,
+            'postprocessor_args': [
+                '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2,setsar=1',
+                '-pix_fmt', 'yuv420p',
+                '-c:v', 'libx264',
+                '-profile:v', 'main',
+                '-movflags', '+faststart',
+            ],
         }
+
+        if self.cookies_path:
+            self.ydl_opts['cookiefile'] = self.cookies_path
+
+    def _validate_video_file(self, file_path: str) -> bool:
+        """Check if downloaded file actually has video stream (not audio-only)"""
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_streams', file_path],
+                capture_output=True, text=True, timeout=10
+            )
+            if result.returncode != 0:
+                return True
+            data = json.loads(result.stdout)
+            streams = data.get('streams', [])
+            has_video = any(s.get('codec_type') == 'video' for s in streams)
+            if not has_video:
+                logger.warning(f"No video stream found in {file_path} (audio-only)")
+                return False
+            return True
+        except Exception as e:
+            logger.debug(f"Validation check skipped: {e}")
+            return True
 
     def is_instagram_url(self, url: str) -> bool:
         """Check if URL is Instagram URL"""
@@ -230,6 +262,28 @@ class InstagramDownloader:
                         else:
                             return {"success": False, "error": "File download ora ketemu."}
 
+                    # Validate video files have video stream
+                    if file_path.endswith(('.mp4', '.mov')) and not self._validate_video_file(file_path):
+                        os.remove(file_path)
+                        # Retry with merge format
+                        retry_opts = self.ydl_opts.copy()
+                        retry_opts['format'] = 'bestvideo+bestaudio/best'
+                        retry_opts['merge_output_format'] = 'mp4'
+                        logger.warning(f"Retrying Instagram download with merged format for {media_id}")
+                        with yt_dlp.YoutubeDL(retry_opts) as ydl2:
+                            ydl2.download([url])
+                            retry_expected = ydl2.prepare_filename(info)
+                            if os.path.exists(retry_expected):
+                                file_path = retry_expected
+                            else:
+                                for file in os.listdir(self.download_dir):
+                                    if media_id in file and file.endswith(('.mp4', '.mov')):
+                                        file_path = os.path.join(self.download_dir, file)
+                                        break
+                        if not self._validate_video_file(file_path):
+                            os.remove(file_path)
+                            return {"success": False, "error": "Video file invalid (no video stream)."}
+
                     logger.info(f"Downloaded Instagram media: {file_path}")
 
                     # Determine media type
@@ -262,6 +316,11 @@ class InstagramDownloader:
                         "error": "Instagram rate-limit. Coba lagi 30-60 menit atau pake link lain."
                     }
                 logger.error(f"yt-dlp error: {e}")
+                if "certain audiences" in error_msg.lower() or "not available to everyone" in error_msg.lower():
+                    return {
+                        "success": False,
+                        "error": "Konten Instagram ini dibatasi dan butuh login. Admin bisa set cookie Instagram.",
+                    }
                 return {"success": False, "error": "Ora iso download Instagram. Mungkin private atau dihapus."}
             except Exception as e:
                 logger.error(f"Instagram download error: {e}")
