@@ -44,6 +44,24 @@ replit.md
 *.swo
 *~
 .replit
+.replit.nix
+
+# Replit / Runtime / Opencode
+.9router/
+.config/
+.opencode/
+attached_assets/
+facebook_reels_yayu/
+fb_html.html
+replit.nix
+
+# Node (Playwright test)
+node_modules/
+bun.lock
+package.json
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # OS Specific Files
 .DS_Store
@@ -81,6 +99,7 @@ coverage.xml
 # Temporary Files
 *.tmp
 /tmp/
+*.mp4
 
 # Jupyter Notebook
 .ipynb_checkpoints

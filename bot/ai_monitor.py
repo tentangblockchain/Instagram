@@ -96,12 +96,14 @@ class GroqMonitor:
         "Selalu jawab dengan format terstruktur dan to the point."
     )
 
+    # Updated per 2026-08-26 Groq limits (RPD)
     MODEL_TIERS = [
-        {"name": "llama-3.3-70b-versatile",                  "daily_limit": 1000,  "quality": 10, "label": "Premium (10/10)"},
-        {"name": "moonshotai/kimi-k2-instruct",               "daily_limit": 1000,  "quality": 9,  "label": "High (9/10)"},
-        {"name": "groq/compound",                             "daily_limit": 250,   "quality": 8,  "label": "Good (8/10)"},
-        {"name": "meta-llama/llama-4-scout-17b-16e-instruct", "daily_limit": 1000,  "quality": 7,  "label": "Scout (7/10)"},
-        {"name": "llama-3.1-8b-instant",                      "daily_limit": 14400, "quality": 6,  "label": "Standard (6/10)"},
+        {"name": "groq/compound",                         "daily_limit": 250,   "quality": 9,  "label": "Good (9/10) - RPD 250"},
+        {"name": "groq/compound-mini",                    "daily_limit": 250,   "quality": 8,  "label": "Mini (8/10) - RPD 250"},
+        {"name": "openai/gpt-oss-120b",                   "daily_limit": 1000,  "quality": 8,  "label": "GPT-OSS-120b (8/10) - RPD 1K"},
+        {"name": "openai/gpt-oss-20b",                    "daily_limit": 1000,  "quality": 7,  "label": "GPT-OSS-20b (7/10) - RPD 1K"},
+        {"name": "qwen/qwen3.6-27b",                      "daily_limit": 1000,  "quality": 6,  "label": "Qwen (6/10) - RPD 1K"},
+        {"name": "allam-2-7b",                            "daily_limit": 7000,  "quality": 5,  "label": "Allam (5/10) - RPD 7K"},
     ]
 
     def __init__(self, api_key: str, admin_ids: list, bot):

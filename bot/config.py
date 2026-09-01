@@ -31,5 +31,6 @@ class Config:
 
         self.GROQ_API_KEY  = os.getenv("GROQ_API_KEY", "")
         self.INSTAGRAM_COOKIES = os.getenv("INSTAGRAM_COOKIES", "")
+        self.FACEBOOK_COOKIES  = os.getenv("FACEBOOK_COOKIES", "") or os.getenv("INSTAGRAM_COOKIES", "")  # fallback biar bisa pakai cookies IG jika FB belum diset
 
         logger.info(f"Konfigurasi dimuat — Admin: {self.ADMIN_IDS}, Channel: {self.REQUIRED_CHANNELS}, Groq: {'✅' if self.GROQ_API_KEY else '❌'}")

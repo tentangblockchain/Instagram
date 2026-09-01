@@ -22,7 +22,7 @@ from bot.ai_monitor import (
 from bot.config import Config
 from bot.constants import MESSAGES, VIP_PACKAGES
 from bot.database import Database
-from bot.downloaders import InstagramDownloader, TikTokDownloader
+from bot.downloaders import FacebookDownloader, InstagramDownloader, TikTokDownloader
 from bot.downloaders.fastdl import FastDLDownloader
 from bot.inline import inline_query_handler, chosen_inline_handler
 from bot.payment import SaweriaAPI
@@ -54,6 +54,7 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 TIKTOK_RE    = re.compile(r"https?://(?:www\.)?(?:vm\.|vt\.)?tiktok\.com/\S+")
 INSTAGRAM_RE = re.compile(r"https?://(?:www\.)?instagram\.com/\S+")
+FACEBOOK_RE  = re.compile(r"https?://(?:www\.|m\.|mbasic\.)?(?:facebook\.com|fb\.com|fb\.watch)/\S+", re.IGNORECASE)
 
 
 # ── Keyboard builders ───────────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ def _kb_admin() -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("🍪 Set IG Cookies",  callback_data="admin_set_ig_cookies"),
+            InlineKeyboardButton("🍪 Set FB Cookies",  callback_data="admin_set_fb_cookies"),
         ],
         [InlineKeyboardButton("🔄 Riwayat Rollback",   callback_data="admin_rollback_list")],
         [InlineKeyboardButton("🔙 Kembali",             callback_data="menu_main")],
@@ -130,6 +132,9 @@ class DownloaderBot:
         self.saweria   = SaweriaAPI(
             username=self.config.SAWERIA_USERNAME,
             user_id=self.config.SAWERIA_USER_ID,
+        )
+        self.facebook  = FacebookDownloader(
+            cookies_path=self.config.FACEBOOK_COOKIES
         )
         self.fastdl    = FastDLDownloader()
         self._polling_tasks: dict[str, asyncio.Task] = {}
@@ -228,18 +233,31 @@ class DownloaderBot:
         text    = update.message.text
         user_id = update.effective_user.id
 
-        tiktok_match    = TIKTOK_RE.search(text)
-        instagram_match = INSTAGRAM_RE.search(text)
-
-        if not tiktok_match and not instagram_match:
+        # Admin multi-step input (add/del vip)
+        if await self._handle_admin_state(update, context):
             return
 
-        url      = (tiktok_match or instagram_match).group()
-        platform = "tiktok" if tiktok_match else "instagram"
+        # Extract ALL URLs (multi-link support)
+        tiktok_matches    = TIKTOK_RE.findall(text)
+        instagram_matches = INSTAGRAM_RE.findall(text)
+        facebook_matches  = FACEBOOK_RE.findall(text)
+
+        if not tiktok_matches and not instagram_matches and not facebook_matches:
+            return
+
+        # Group by platform
+        urls_by_platform = []
+        for u in tiktok_matches:
+            urls_by_platform.append(("tiktok", u))
+        for u in instagram_matches:
+            urls_by_platform.append(("instagram", u))
+        for u in facebook_matches:
+            urls_by_platform.append(("facebook", u))
+
+        total = len(urls_by_platform)
         is_vip   = self.db.is_user_vip(user_id)
         is_admin = user_id in self.config.ADMIN_IDS
 
-        # Channel membership
         if not is_vip and not is_admin:
             if not await self._check_membership(user_id, context.bot):
                 channels = "\n".join(f"• {ch}" for ch in self.config.REQUIRED_CHANNELS)
@@ -249,7 +267,7 @@ class DownloaderBot:
                 )
                 return
 
-        # Daily limit
+        # Check daily limit (allow total downloads, not just this batch)
         if not is_admin:
             limit   = self.config.VIP_DAILY_LIMIT if is_vip else self.config.FREE_DAILY_LIMIT
             current = self.db.get_daily_downloads(user_id)
@@ -260,17 +278,70 @@ class DownloaderBot:
                 )
                 return
 
-        proc_msg = await update.message.reply_text(MESSAGES["processing"], parse_mode="HTML")
+        proc_msg = await update.message.reply_text(
+            f"🔄 <b>Processing {total} links...</b>\n"
+            f"TikTok: {len(tiktok_matches)} | Instagram: {len(instagram_matches)} | Facebook: {len(facebook_matches)}",
+            parse_mode="HTML",
+        )
+
+        success = 0
+        failed = 0
+        results = []
 
         try:
-            if platform == "tiktok":
-                await self._send_tiktok(update, context, url, user_id, proc_msg)
-            else:
-                await self._send_instagram(update, context, url, user_id, proc_msg)
-        except Exception as e:
-            logger.error(f"Download error: {e}")
+            for i, (platform, url) in enumerate(urls_by_platform, 1):
+                await asyncio.sleep(0.3)  # anti-flood antaralink
+                # Check daily limit per download
+                if not is_admin:
+                    current = self.db.get_daily_downloads(user_id)
+                    if current >= limit:
+                        await proc_msg.edit_text(
+                            f"⏹ <b>Limit harian tercapai!</b>\n\n"
+                            f"✅ Sukses: {success} | ❌ Gagal: {failed}\n"
+                            f"Sisa: {limit - current}/{limit} download hari ini",
+                            parse_mode="HTML",
+                        )
+                        return
+
+                try:
+                    if platform == "tiktok":
+                        ok = await self._send_tiktok(update, context, url, user_id, proc_msg, batch=True)
+                    elif platform == "instagram":
+                        ok = await self._send_instagram(update, context, url, user_id, proc_msg, batch=True)
+                    else:
+                        ok = await self._send_facebook(update, context, url, user_id, proc_msg, batch=True)
+                    if ok:
+                        success += 1
+                        results.append(("✅", url))
+                    else:
+                        failed += 1
+                        results.append(("❌", url))
+                except Exception as e:
+                    failed += 1
+                    results.append(("❌", url))
+                    logger.error(f"Download error for {url}: {e}")
+
+                # Progress update tiap 5 link
+                if i % 5 == 0 or i == total:
+                    await proc_msg.edit_text(
+                        f"🔄 <b>Processing {i}/{total}...</b>\n"
+                        f"✅ Sukses: {success} | ❌ Gagal: {failed}",
+                        parse_mode="HTML",
+                    )
+
+            # Final summary
             await proc_msg.edit_text(
-                MESSAGES["download_error"].format(error=str(e)),
+                f"📊 <b>Selesai!</b> Total: {total}\n"
+                f"✅ Sukses: {success} | ❌ Gagal: {failed}\n\n"
+                f"<i>{total - failed} link berhasil di-download.</i>",
+                parse_mode="HTML",
+            )
+
+        except Exception as e:
+            logger.error(f"Batch download error: {e}")
+            await proc_msg.edit_text(
+                f"❌ <b>Error:</b> {str(e)[:200]}\n"
+                f"✅ Sukses: {success} | ❌ Gagal: {failed} / {total}",
                 parse_mode="HTML",
             )
 
@@ -294,14 +365,17 @@ class DownloaderBot:
             logger.debug(f"get_video_size error: {e}")
         return (0, 0)
 
-    async def _send_tiktok(self, update, context, url, user_id, proc_msg):
+    async def _send_tiktok(self, update, context, url, user_id, proc_msg, batch=False):
         result = await self.tiktok.download(url)
         if not result["success"]:
-            await proc_msg.edit_text(
-                MESSAGES["download_error"].format(error=result["error"]),
-                parse_mode="HTML",
-            )
-            return
+            if not batch:
+                await proc_msg.edit_text(
+                    MESSAGES["download_error"].format(error=result["error"]),
+                    parse_mode="HTML",
+                )
+            else:
+                logger.warning(f"TikTok gagal {url}: {result['error']}")
+            return False
 
         self.db.record_download(user_id)
         caption = self._clean_caption(result.get("caption", "")) or MESSAGES["download_success"]
@@ -318,41 +392,51 @@ class DownloaderBot:
                                              width=w, height=h)
 
         _safe_delete(result["file_path"])
-        await proc_msg.delete()
+        if not batch:
+            await proc_msg.delete()
+        return True
 
-    async def _send_instagram(self, update, context, url, user_id, proc_msg):
+    async def _send_instagram(self, update, context, url, user_id, proc_msg, batch=False):
         result = await self.instagram.download(url)
         if not result["success"]:
             error_text = result["error"]
             restricted_keywords = ["restricted", "not available", "audiences", "content isn", "sensitive"]
             if any(kw in error_text.lower() for kw in restricted_keywords):
-                await proc_msg.edit_text(
-                    "Mencoba metode alternatif (fastdl.app)…",
-                    parse_mode="HTML",
-                )
-                result = await self.fastdl.download(url)
-                if not result["success"]:
+                if not batch:
                     await proc_msg.edit_text(
-                        MESSAGES["download_error"].format(error=result["error"]),
+                        "Mencoba metode alternatif (fastdl.app)…",
                         parse_mode="HTML",
                     )
+                result = await self.fastdl.download(url)
+                if not result["success"]:
+                    if not batch:
+                        await proc_msg.edit_text(
+                            MESSAGES["download_error"].format(error=result["error"]),
+                            parse_mode="HTML",
+                        )
+                    else:
+                        logger.warning(f"IG gagal (fastdl) {url}: {result['error']}")
                     context.application.create_task(self.fastdl.cleanup())
-                    return
+                    return False
             else:
-                await proc_msg.edit_text(
-                    MESSAGES["download_error"].format(error=error_text),
-                    parse_mode="HTML",
-                )
-                return
+                if not batch:
+                    await proc_msg.edit_text(
+                        MESSAGES["download_error"].format(error=error_text),
+                        parse_mode="HTML",
+                    )
+                else:
+                    logger.warning(f"IG gagal {url}: {error_text}")
+                return False
 
         chat_id = update.effective_chat.id
 
         if result["type"] == "carousel":
             self.db.record_download(user_id)
-            await proc_msg.edit_text(
-                MESSAGES["carousel_success"].format(count=result["count"]),
-                parse_mode="HTML",
-            )
+            if not batch:
+                await proc_msg.edit_text(
+                    MESSAGES["carousel_success"].format(count=result["count"]),
+                    parse_mode="HTML",
+                )
             base_caption = self._clean_caption(result.get("caption", ""))[:1024]
             for i, path in enumerate(result["files"]):
                 caption = f"<b>Part {i + 1}/{result['count']}</b>"
@@ -384,7 +468,135 @@ class DownloaderBot:
                                                  caption=caption, parse_mode="HTML",
                                                  width=w, height=h)
             _safe_delete(result["file_path"])
+
+        if not batch:
             await proc_msg.delete()
+        return True
+
+    async def _send_facebook(self, update, context, url, user_id, proc_msg, batch=False):
+        # Jika URL adalah profile reels_tab, scrape dulu tanpa Docker (Playwright)
+        if self.facebook.is_profile_reels_url(url):
+            if batch:
+                # Dalam batch: jangan edit proc_msg (progress message) — scrape + download reel pertama saja
+                reel_urls = await self.facebook.scrape_profile_reels(url, max_reels=10)
+                if not reel_urls:
+                    logger.warning(f"FB profile {url}: tidak ada reels")
+                    return False
+                # Download reel pertama saja dalam batch
+                first_url = reel_urls[0]
+                result = await self.facebook._download_single(first_url)
+                if not result["success"]:
+                    return False
+                self.db.record_download(user_id)
+                caption = self._clean_caption(result.get("caption", "")) or MESSAGES["download_success"]
+                chat_id = update.effective_chat.id
+                w, h = self._get_video_size(result["file_path"])
+                with open(result["file_path"], "rb") as f:
+                    await context.bot.send_video(chat_id=chat_id, video=f, caption=caption, parse_mode="HTML", width=w, height=h)
+                _safe_delete(result["file_path"])
+                logger.info(f"Batch: download 1/{len(reel_urls)} reels dari profile (sisanya kirim manual)")
+                return True
+
+            await proc_msg.edit_text(
+                "🔍 <b>Sedang scan profile Facebook...</b>\n<i>Mengambil daftar Reels tanpa Docker (Playwright)...</i>",
+                parse_mode="HTML",
+            )
+            reel_urls = await self.facebook.scrape_profile_reels(url, max_reels=10)
+            if not reel_urls:
+                await proc_msg.edit_text(
+                    "❌ Tidak ada Reels yang terdeteksi di profil ini.\n\n<i>Tips: kirim link Reels tunggal seperti <code>facebook.com/reel/123...</code> atau <code>fb.watch/...</code></i>",
+                    parse_mode="HTML",
+                )
+                return False
+            # Kirim daftar reels sebagai tombol
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            buttons = []
+            for i, rurl in enumerate(reel_urls[:10], 1):
+                buttons.append([InlineKeyboardButton(f"📥 Reels #{i}", callback_data=f"fbdl_{i-1}")])
+            context.user_data["fb_reels"] = reel_urls
+            await proc_msg.edit_text(
+                f"✅ <b>Ditemukan {len(reel_urls)} Reels</b>\n\n"
+                f"Profil: <code>{url[:60]}...</code>\n"
+                f"Pilih Reels yang mau di-download:",
+                reply_markup=InlineKeyboardMarkup(buttons),
+                parse_mode="HTML",
+            )
+            return True
+
+        result = await self.facebook.download(url)
+        if not result["success"]:
+            if not batch:
+                await proc_msg.edit_text(
+                    MESSAGES["download_error"].format(error=result["error"]),
+                    parse_mode="HTML",
+                )
+            else:
+                logger.warning(f"FB gagal {url}: {result['error']}")
+            return False
+
+        # Jika berhasil tapi ini dari profile (type==profile), kasih info tambahan
+        if result.get("type") == "profile":
+            reel_urls = result.get("profile_reels", [])
+            context.user_data["fb_reels"] = reel_urls
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            buttons = [[InlineKeyboardButton(f"📥 Reels #{i+1}", callback_data=f"fbdl_{i}")] for i in range(min(len(reel_urls), 10))]
+            self.db.record_download(user_id)
+            caption = self._clean_caption(result.get("caption", "")) or MESSAGES["download_success"]
+            caption += f"\n\n<i>📋 Profil ini punya {result.get('profile_count')} Reels, pilih di bawah untuk download lainnya</i>"
+            chat_id = update.effective_chat.id
+            w, h = self._get_video_size(result["file_path"])
+            with open(result["file_path"], "rb") as f:
+                await context.bot.send_video(chat_id=chat_id, video=f, caption=caption, parse_mode="HTML", width=w, height=h)
+            _safe_delete(result["file_path"])
+            if not batch:
+                await proc_msg.delete()
+            if buttons:
+                await context.bot.send_message(chat_id=chat_id, text=f"📋 <b>Sisa {len(reel_urls)-1} Reels lainnya:</b>", reply_markup=InlineKeyboardMarkup(buttons), parse_mode="HTML")
+            return True
+
+        self.db.record_download(user_id)
+        caption = self._clean_caption(result.get("caption", "")) or MESSAGES["download_success"]
+        chat_id = update.effective_chat.id
+        w, h = self._get_video_size(result["file_path"])
+        with open(result["file_path"], "rb") as f:
+            await context.bot.send_video(chat_id=chat_id, video=f, caption=caption, parse_mode="HTML", width=w, height=h)
+        _safe_delete(result["file_path"])
+        if not batch:
+            await proc_msg.delete()
+        return True
+
+    async def _handle_fb_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        await query.answer()
+        data = query.data
+        if not data.startswith("fbdl_"):
+            return
+        idx = int(data.split("_")[1])
+        reel_urls = context.user_data.get("fb_reels", [])
+        if idx >= len(reel_urls):
+            await query.answer("Reels tidak ditemukan", show_alert=True)
+            return
+        url = reel_urls[idx]
+        user_id = query.from_user.id
+        # Cek limit
+        is_admin = user_id in self.config.ADMIN_IDS
+        if not is_admin:
+            limit = self.config.VIP_DAILY_LIMIT if self.db.is_user_vip(user_id) else self.config.FREE_DAILY_LIMIT
+            if self.db.get_daily_downloads(user_id) >= limit:
+                await query.message.reply_text(MESSAGES["daily_limit"].format(current=limit, limit=limit), parse_mode="HTML")
+                return
+        proc_msg = await query.message.reply_text(MESSAGES["processing"], parse_mode="HTML")
+        result = await self.facebook._download_single(url)
+        if not result["success"]:
+            await proc_msg.edit_text(MESSAGES["download_error"].format(error=result["error"]), parse_mode="HTML")
+            return
+        self.db.record_download(user_id)
+        caption = self._clean_caption(result.get("caption", "")) or f"<i>{result.get('title','')}</i>"
+        w, h = self._get_video_size(result["file_path"])
+        with open(result["file_path"], "rb") as f:
+            await context.bot.send_video(chat_id=query.message.chat_id, video=f, caption=caption, parse_mode="HTML", width=w, height=h)
+        _safe_delete(result["file_path"])
+        await proc_msg.delete()
 
     # ── Menu callbacks ──────────────────────────────────────────────────────────
 
@@ -607,6 +819,28 @@ class DownloaderBot:
             parse_mode="HTML",
         )
 
+    async def cb_admin_set_fb_cookies(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        query = update.callback_query
+        user_id = query.from_user.id
+        await query.answer()
+        if user_id not in self.config.ADMIN_IDS:
+            await query.answer(MESSAGES["not_admin"], show_alert=True)
+            return
+
+        self._admin_state[user_id] = {"step": "set_fb_cookies"}
+        await query.edit_message_text(
+            "🍪 <b>Set Facebook Cookies (untuk Reels Profile)</b>\n\n"
+            "Tanpa ini, bot tidak bisa scrape <code>?sk=reels_tab</code> karena Facebook redirect ke login (sudah kita trace).\n\n"
+            "Cara export:\n"
+            "1. Install ekstensi <b>Get cookies.txt LOCALLY</b> di Chrome\n"
+            "2. Login ke facebook.com (akun bebas)\n"
+            "3. Buka facebook.com → Klik ikon ekstensi → Export → Copy\n"
+            "4. Paste <b>semua isi file</b> ke chat ini\n\n"
+            "Bot akan inject cookies ke Playwright (pengganti FlareSolverr tanpa Docker) + yt-dlp.\n"
+            "<i>Balas /cancel untuk batal.</i>",
+            parse_mode="HTML",
+        )
+
     async def _handle_admin_state(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
         """Handle multi-step admin input. Returns True if handled."""
         user_id = update.effective_user.id
@@ -710,6 +944,27 @@ class DownloaderBot:
                     parse_mode="HTML",
                 )
                 logger.info(f"Admin {user_id} menyimpan Instagram cookies")
+            except Exception as e:
+                await update.message.reply_text(f"❌ Gagal simpan cookies: {e}", parse_mode="HTML")
+            return True
+
+        elif step == "set_fb_cookies":
+            cookies_file = os.path.join(os.path.dirname(self.config.DATABASE_PATH) or '.', 'facebook_cookies.txt')
+            try:
+                with open(cookies_file, 'w') as f:
+                    f.write(text)
+                self.facebook = FacebookDownloader(cookies_path=cookies_file)
+                del self._admin_state[user_id]
+                await update.message.reply_text(
+                    "✅ <b>Facebook Cookies berhasil disimpan!</b>\n\n"
+                    "Sekarang bot bisa:\n"
+                    "• Download Reels tunggal (yt-dlp)\n"
+                    "• Scrape profile <code>?sk=reels_tab</code> via Playwright tanpa Docker (pengganti FlareSolverr)\n"
+                    "Contoh: kirim <code>https://www.facebook.com/people/Yayu-iswahyuni/61590328673759/?sk=reels_tab</code> lagi",
+                    reply_markup=_kb_admin(),
+                    parse_mode="HTML",
+                )
+                logger.info(f"Admin {user_id} menyimpan Facebook cookies")
             except Exception as e:
                 await update.message.reply_text(f"❌ Gagal simpan cookies: {e}", parse_mode="HTML")
             return True
@@ -1025,6 +1280,12 @@ class DownloaderBot:
         error = context.error
         logger.error("Unhandled exception:", exc_info=error)
 
+        # Skip error yang bukan bug (Conflict = bot jalan di 2 instance, jangan spam Groq)
+        error_str = str(error).lower()
+        if "terminated by other getupdates" in error_str or "conflict" in error_str:
+            logger.warning("⚠️ Conflict terdeteksi — bot dijalankan 2 instance. Matikan salah satu (start.sh PM2 ATAU python -m bot.main).")
+            return
+
         if not self.monitor or not error:
             return
 
@@ -1120,6 +1381,10 @@ class DownloaderBot:
         app.add_handler(CallbackQueryHandler(self.cb_admin_add_vip,  pattern=r"^admin_add_vip$"))
         app.add_handler(CallbackQueryHandler(self.cb_admin_delvip,   pattern=r"^admin_delvip$"))
         app.add_handler(CallbackQueryHandler(self.cb_admin_set_ig_cookies, pattern=r"^admin_set_ig_cookies$"))
+        app.add_handler(CallbackQueryHandler(self.cb_admin_set_fb_cookies, pattern=r"^admin_set_fb_cookies$"))
+
+        # Facebook reels callback (tanpa Docker)
+        app.add_handler(CallbackQueryHandler(self._handle_fb_callback, pattern=r"^fbdl_\d+$"))
 
         # VIP purchase
         app.add_handler(CallbackQueryHandler(self.cb_vip_select,    pattern=r"^vip_\d+$"))
