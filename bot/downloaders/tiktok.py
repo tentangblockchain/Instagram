@@ -5,17 +5,88 @@ import logging
 import tempfile
 import re
 import time
+import html as html_lib
+import threading
 from typing import Dict, Optional
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, quote_plus
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from ..utils import sanitize_text
 
 logger = logging.getLogger(__name__)
+
+# --- TikTok rate-limit handling -------------------------------------------------
+# TikTok memblokir IP dengan HTTP 429 pada endpoint oEmbed. Memakai response
+# acak tanpa User-Agent membuat pola Picking-Bot gampang di-fingerprint, dan
+# retry buta tanpa jeda memperpanjang ban. Solusinya: satu Session dengan UA
+# browser + retry backoff yang menghormati Retry-After, lalu cooldown global
+# supaya request berikutnya langsung ditolak dengan pesan jelas (bukan retry
+# sia-sia yang memperpanjang ban).
+_TIKTOK_COOLDOWN_SECONDS = 300  # 5 menit
+_tiktok_cooldown_until = 0.0
+_cooldown_lock = threading.Lock()
+
+_BROWSER_HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Referer': 'https://www.tiktok.com/',
+}
+
+
+class TikTokRateLimited(Exception):
+    """TikTok membalas 429 — IP kita sedang di rate-limit."""
+
+
+def _cooldown_remaining() -> int:
+    """Sisa cooldown dalam detik (0 = boleh request)."""
+    global _tiktok_cooldown_until
+    with _cooldown_lock:
+        remaining = _tiktok_cooldown_until - time.time()
+        return int(remaining) if remaining > 0 else 0
+
+
+def _trigger_cooldown(seconds: int = _TIKTOK_COOLDOWN_SECONDS) -> None:
+    global _tiktok_cooldown_until
+    with _cooldown_lock:
+        _tiktok_cooldown_until = time.time() + seconds
+
+
+def _clear_cooldown() -> None:
+    global _tiktok_cooldown_until
+    with _cooldown_lock:
+        _tiktok_cooldown_until = 0.0
+
 
 class TikTokDownloader:
     def __init__(self):
         # dedicated subfolder for TikTok downloads
         self.download_dir = os.path.join(tempfile.gettempdir(), "jawanese_bot_tiktok")
         os.makedirs(self.download_dir, exist_ok=True)
+
+        # Shared Session: UA + retry backoff. Satu session dipakai untuk semua
+        # request TikTok supaya tidak terlihat seperti robot yang bikin koneksi
+        # baru tiap panggilan. raise_on_status=False → response 429 dikembalikan
+        # (bukan exception) supaya kita yang memutuskan handler-nya.
+        self.session = requests.Session()
+        self.session.headers.update(_BROWSER_HEADERS)
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=3,
+            status=3,
+            backoff_factor=1.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset(["GET", "HEAD"]),
+            respect_retry_after_header=True,
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry, pool_connections=4, pool_maxsize=8)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
         # OPTIMIZED yt-dlp configuration
         self.ydl_opts = {
@@ -72,8 +143,168 @@ class TikTokDownloader:
         ]
         return any(indicator.lower() in str(error_msg).lower() for indicator in fatal_indicators)
 
+    # --- Rate-limit aware HTTP helpers -------------------------------------------
+
+    def _ensure_not_cooling_down(self) -> None:
+        """Tolak request baru saat masih cooldown — jangan retry sia-sia."""
+        remaining = _cooldown_remaining()
+        if remaining > 0:
+            raise TikTokRateLimited(
+                f"TikTok sedang rate-limit. Coba lagi dalam {remaining} detik."
+            )
+
+    @staticmethod
+    def _retry_after_seconds(response, cap: int = _TIKTOK_COOLDOWN_SECONDS) -> int:
+        """Baca header Retry-After kalau ada, else pakai default cooldown."""
+        header = (response.headers.get('Retry-After') or '').strip()
+        if header.isdigit():
+            return max(1, min(int(header), cap))
+        return _TIKTOK_COOLDOWN_SECONDS
+
+    def _tiktok_get(self, url: str, *, timeout: int = 10, stream: bool = False,
+                    check: bool = True, bypass_cooldown: bool = False):
+        """GET lewat shared session; 429 → cooldown + exception, bukan error kabur.
+
+        ``bypass_cooldown`` dipakai HANYA oleh fallback HTML: endpoint halaman
+        berbeda dari oEmbed, jadi layak satu percobaan meski oEmbed kena 429 —
+        tanpa ini, cooldown baru aktif akan memblokir fallback-nya sendiri.
+        """
+        if not bypass_cooldown:
+            self._ensure_not_cooling_down()
+        try:
+            response = self.session.get(url, timeout=timeout, stream=stream)
+        except requests.RequestException as e:
+            logger.error(f"Network error GET {url[:80]}: {e}")
+            raise
+        if response.status_code == 429:
+            cooldown = self._retry_after_seconds(response)
+            _trigger_cooldown(cooldown)
+            logger.warning(
+                f"TikTok 429 (rate limit) — cooldown {cooldown} detik setelah {url[:80]}"
+            )
+            raise TikTokRateLimited(
+                f"TikTok sedang rate-limit. Coba lagi dalam {cooldown} detik."
+            )
+        if check:
+            response.raise_for_status()
+        return response
+
+    # --- Fallback: ambil thumbnail dari HTML halaman ----------------------------
+
+    @staticmethod
+    def _extract_thumbnail_from_html(page_html: str) -> Optional[str]:
+        """TikTok sering memblokir oEmbed tapi masih melayani HTML halaman.
+        Ambil URL gambar pertama yang muncul di markup."""
+        if not page_html:
+            return None
+        # Normalisasi escape dulu: JSON di dalam <script> sering ditulis
+        # "https:\/\/p16.tiktokcdn.com\/a.jpg" atau \u002F. Tanpa ini semua
+        # pola di bawah gagal karena regex-nya cari "//" literal.
+        normalized = page_html.replace('\\u002F', '/').replace('\\/', '/')
+        for pattern in (
+            r'<img[^>]+src="(https://[^"]*tiktokcdn[^"]*?\.(?:jpe?g|png|webp)[^"]*)"',
+            r'<img[^>]+src="(https://[^"]*tiktokcdn[^"]*?)"',
+            r'"displayImage"\s*:\s*"(https://[^"]+)"',
+            r'"cover"\s*:\s*"(https://[^"]+)"',
+            r'"thumbnail"\s*:\s*"(https://[^"]+)"',
+        ):
+            match = re.search(pattern, normalized)
+            if match:
+                return html_lib.unescape(match.group(1))
+        # fallback terakhir: srcset berisi beberapa ukuran
+        match = re.search(r'srcset="(https://[^"]+?\.(?:jpe?g|png|webp)[^"]*)"', normalized)
+        if match:
+            return html_lib.unescape(match.group(1))
+        return None
+
+    def _fetch_photo_via_tikwm(self, url: str) -> Optional[Dict]:
+        """Jalur kedua untuk FOTO: TikTok memblokir oEmbed (429) dari IP datacenter,
+        dan halaman HTML-nya tidak menyertakan data konten (itemStruct/playAddr/
+        imagePost kosong), jadi scrape HTML tidak berguna. tikwm.com tetap melayani
+        request dan mengembalikan URL foto asli di `data.images[]`.
+
+        yt-dlp juga tidak mendukung URL /photo/ ("Unsupported URL"), jadi untuk foto
+        inilah satu-satunya jalur yang benar-benar hidup.
+        """
+        try:
+            api_url = f"https://www.tikwm.com/api/?url={quote_plus(url)}"
+            logger.info(f"Trying tikwm photo fallback: {url[:70]}")
+            resp = self.session.get(api_url, timeout=20)
+            resp.raise_for_status()
+            data = resp.json()
+
+            if data.get('code') != 0:
+                logger.warning(
+                    f"tikwm photo API error: code={data.get('code')} msg={str(data.get('msg'))[:80]}"
+                )
+                return None
+
+            payload = data.get('data') or {}
+            images = payload.get('images') or []
+            if not images:
+                # Beberapa konten hanya punya cover/origin_cover
+                for key in ('origin_cover', 'cover'):
+                    candidate = payload.get(key)
+                    if candidate:
+                        images = [candidate]
+                        break
+            if not images:
+                logger.warning("tikwm tidak mengembalikan images[] (foto?)")
+                return None
+
+            img_url = images[0]
+            img_response = self.session.get(img_url, timeout=20)
+            img_response.raise_for_status()
+            content_type = img_response.headers.get('Content-Type', '')
+            if 'image' not in content_type.lower():
+                logger.warning(f"tikwm image bukan gambar (Content-Type: {content_type})")
+                return None
+
+            title = payload.get('title') or payload.get('author_name') or 'TikTok Photo'
+            return {
+                'content': img_response.content,
+                'title': title,
+                'caption': payload.get('content_desc') or payload.get('title') or '',
+                'source': 'tikwm',
+            }
+        except Exception as e:
+            logger.warning(f"tikwm photo fallback gagal: {e}")
+            return None
+
+    def _fetch_photo_via_page(self, oembed_url: str, page_url: str) -> Optional[Dict]:
+        """Cadangan terakhir: scrape thumbnail dari HTML halaman.
+
+        Catatan: dari IP datacenter TikTok sering menyajikan halaman shell tanpa
+        data konten, jadi ini LAZY gagal. Dipakai hanya setelah tikwm gagal.
+        """
+        candidates = [oembed_url.replace('/video/', '/photo/'), page_url, oembed_url]
+        for candidate in dict.fromkeys(candidates):
+            try:
+                logger.info(f"Trying HTML thumbnail fallback: {candidate[:80]}")
+                # bypass_cooldown=True: halaman bukan oEmbed, satu percobaan
+                # tetap bernilai walau oEmbed baru saja kena 429.
+                response = self._tiktok_get(candidate, timeout=12, bypass_cooldown=True)
+                thumb = self._extract_thumbnail_from_html(response.text)
+                if not thumb:
+                    continue
+                img_response = self._tiktok_get(thumb, timeout=15, bypass_cooldown=True)
+                content_type = img_response.headers.get('Content-Type', '')
+                if 'image' not in content_type.lower():
+                    logger.warning(f"Fallback bukan gambar (Content-Type: {content_type})")
+                    continue
+                return {'content': img_response.content, 'source_url': thumb}
+            except TikTokRateLimited:
+                raise
+            except requests.RequestException as e:
+                logger.warning(f"Fallback HTML gagal untuk {candidate[:60]}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"Fallback HTML error untuk {candidate[:60]}: {e}")
+                continue
+        return None
+
     async def download_photo(self, url: str) -> Dict:
-        """Download TikTok photo using oEmbed API"""
+        """Download TikTok photo: oEmbed dulu, fallback scrape HTML saat 429."""
         try:
             video_id = self.extract_video_id(url)
             if not video_id:
@@ -90,48 +321,101 @@ class TikTokDownloader:
             else:
                 oembed_url = url
 
-            # Get oEmbed data with timeout
+            # Get oEmbed data with timeout (session + backoff + 429 handling).
+            # Kalau cooldown masih aktif, LEWATI oEmbed sama sekali — request itu
+            # pasti 429 dan hanya membuang ~10 detik. Langsung ke fallback.
             oembed_api_url = f"https://www.tiktok.com/oembed?url={oembed_url}"
-            response = requests.get(oembed_api_url, timeout=10)
-            response.raise_for_status()
+            oembed_data = None
+            skip_oembed = _cooldown_remaining() > 0
+            if skip_oembed:
+                logger.info(
+                    f"Cooldown TikTok aktif — skip oEmbed, langsung ke fallback "
+                    f"(sisa {_cooldown_remaining()} detik)"
+                )
+            else:
+                try:
+                    response = self._tiktok_get(oembed_api_url, timeout=10)
+                    oembed_data = response.json()
+                    _clear_cooldown()
+                except TikTokRateLimited:
+                    oembed_data = None
+                except ValueError as e:
+                    logger.warning(f"oEmbed balas bukan JSON: {e}")
+                    oembed_data = None
 
-            oembed_data = response.json()
-            thumbnail_url = oembed_data.get('thumbnail_url')
+            thumbnail_url = oembed_data.get('thumbnail_url') if oembed_data else None
+            img_content = None
+            meta_source = 'oembed'
+            fallback_title = None
+            fallback_caption = None
 
-            if not thumbnail_url:
+            if thumbnail_url:
+                # Download the image with timeout
+                img_response = self._tiktok_get(thumbnail_url, timeout=15)
+                img_content = img_response.content
+            else:
+                # oEmbed kena 429 / tidak ada thumbnail → tikwm (jalur yang hidup
+                # untuk foto; HTML TikTok dari IP datacenter tidak berisi data).
+                logger.warning("oEmbed tidak ada thumbnail — coba fallback tikwm")
+                fallback = self._fetch_photo_via_tikwm(url)
+                if fallback:
+                    img_content = fallback['content']
+                    meta_source = fallback.get('source', 'tikwm')
+                    fallback_title = fallback.get('title')
+                    fallback_caption = fallback.get('caption')
+                else:
+                    logger.warning("tikwm gagal — coba fallback HTML (scope terbatas)")
+                    html_fallback = self._fetch_photo_via_page(oembed_url, url)
+                    if html_fallback:
+                        img_content = html_fallback['content']
+                        meta_source = 'html'
+
+            if not img_content:
+                remaining = _cooldown_remaining()
+                if remaining > 0:
+                    return {
+                        "success": False,
+                        "error": (
+                            f"TikTok sedang rate-limit. Coba lagi dalam {remaining} detik."
+                        )
+                    }
                 return {"success": False, "error": "Ora ketemu thumbnail URL"}
-
-            # Download the image with timeout
-            img_response = requests.get(thumbnail_url, timeout=15)
-            img_response.raise_for_status()
 
             # Save to temporary file
             filename = f"tiktok_photo_{video_id}.jpg"
             file_path = os.path.join(self.download_dir, filename)
 
             with open(file_path, 'wb') as f:
-                f.write(img_response.content)
+                f.write(img_content)
 
             logger.info(f"Downloaded TikTok photo: {file_path}")
 
             # Extract caption
             caption_text = ""
-            if oembed_data.get('title'):
-                original_caption = oembed_data.get('title', '')
-                if original_caption and original_caption.strip():
-                    cleaned_caption = sanitize_text(original_caption.strip())
-                    if len(cleaned_caption) > 300:
-                        cleaned_caption = cleaned_caption[:300] + "..."
-                    caption_text = f"`{cleaned_caption}`"
+            raw_caption = (oembed_data or {}).get('title') if oembed_data else None
+            if not raw_caption and meta_source == 'tikwm':
+                raw_caption = fallback_caption
+            if raw_caption and raw_caption.strip():
+                cleaned_caption = sanitize_text(raw_caption.strip())
+                if len(cleaned_caption) > 300:
+                    cleaned_caption = cleaned_caption[:300] + "..."
+                caption_text = f"`{cleaned_caption}`"
+
+            title_value = (oembed_data or {}).get('author_name')
+            if not title_value and meta_source == 'tikwm':
+                title_value = fallback_title
 
             return {
                 "success": True,
                 "type": "photo",
                 "file_path": file_path,
-                "title": oembed_data.get('author_name', 'TikTok Photo'),
-                "caption": caption_text
+                "title": title_value or 'TikTok Photo',
+                "caption": caption_text,
+                "source": meta_source
             }
 
+        except TikTokRateLimited as e:
+            return {"success": False, "error": str(e)}
         except requests.RequestException as e:
             logger.error(f"Network error downloading photo: {e}")
             return {"success": False, "error": f"Network error: {str(e)}"}
@@ -144,7 +428,9 @@ class TikTokDownloader:
         try:
             logger.info(f"Trying tikwm API fallback for: {url}")
             api_url = f"https://www.tikwm.com/api/?url={url}"
-            resp = requests.get(api_url, timeout=15)
+            # tikwm = domain pihak ketiga; 429 di sini milik rate limit tikwm,
+            # jadi pakai session tapi TANPA cooldown TikTok (authorship berbeda).
+            resp = self.session.get(api_url, timeout=15)
             resp.raise_for_status()
             data = resp.json()
 
@@ -164,7 +450,7 @@ class TikTokDownloader:
             filename = f"tiktok_{video_id}.mp4"
             file_path = os.path.join(self.download_dir, filename)
 
-            vid_resp = requests.get(video_url, timeout=30, stream=True)
+            vid_resp = self.session.get(video_url, timeout=30, stream=True)
             vid_resp.raise_for_status()
             with open(file_path, 'wb') as f:
                 for chunk in vid_resp.iter_content(chunk_size=8192):
@@ -299,13 +585,12 @@ class TikTokDownloader:
             return True  # skip validation on error
 
     def resolve_url(self, url: str) -> str:
-        """Resolve shortened TikTok URLs with optimized timeout"""
+        """Resolve shortened TikTok URLs dengan session + UA browser"""
         try:
             if 'vm.tiktok.com' in url or 'vt.tiktok.com' in url:
-                headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                }
-                response = requests.get(url, headers=headers, allow_redirects=True, timeout=10)
+                # Pakai session yang sama (UA + retry) supaya resolve dan download
+                # terlihat sebagai satu klien konsisten, bukan request tanpa UA.
+                response = self.session.get(url, allow_redirects=True, timeout=10)
                 resolved_url = response.url
                 logger.info(f"Resolved short URL: {url} -> {resolved_url}")
                 return resolved_url
